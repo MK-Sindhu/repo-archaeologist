@@ -27,6 +27,7 @@ from ..config import arch_home
 from ..contracts import LLM
 from ..sources.github import resolve_token
 from .engine import Engine
+from .repo_api import NotFound, RepoApi
 from .sources import SourceError, parse_source
 from .store import Store
 
@@ -118,13 +119,23 @@ def create_app(
     engine_kwargs: dict[str, Any] = {}
     if toolbox_opener is not None:
         engine_kwargs["toolbox_opener"] = toolbox_opener
+    def llm_is_ready() -> bool:
+        if injected:
+            return True
+        try:
+            return llm_ready()[0]
+        except ValueError:
+            return False
+
     engine = Engine(
         store,
         llm_factory or default_llm,
         model_name,
         max_runs=max_runs or int(os.getenv("ARCH_WEB_MAX_RUNS", "1") or 1),
+        llm_ready=llm_is_ready,
         **engine_kwargs,
     )
+    repos_api = RepoApi(engine)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -227,6 +238,61 @@ def create_app(
             raise HTTPException(404, "This repository is not open.")
         return Response(status_code=204)
 
+    # -- repository: survey, files, history, suggestions, guide ---------------------------
+    def _repo_call(fn, *args):
+        try:
+            return fn(*args)
+        except NotFound as exc:
+            raise HTTPException(404, str(exc)) from None
+
+    @app.get("/api/repos/{repo_id}/survey")
+    def repo_survey(repo_id: str) -> dict[str, Any]:
+        return _repo_call(repos_api.survey, repo_id)
+
+    @app.get("/api/repos/{repo_id}/outline")
+    def repo_outline(repo_id: str, path: str) -> dict[str, Any]:
+        return _repo_call(repos_api.outline, repo_id, path)
+
+    @app.get("/api/repos/{repo_id}/code")
+    def repo_code(repo_id: str, path: str, start: int | None = None,
+                  end: int | None = None) -> dict[str, Any]:
+        return _repo_call(repos_api.code, repo_id, path, start, end)
+
+    @app.get("/api/repos/{repo_id}/history")
+    def repo_history(repo_id: str, path: str, symbol: str | None = None,
+                     start: int | None = None, end: int | None = None,
+                     resolve: int = 0) -> dict[str, Any]:
+        return _repo_call(repos_api.history, repo_id, path, symbol, start, end, bool(resolve))
+
+    @app.get("/api/repos/{repo_id}/suggestions")
+    def repo_suggestions(repo_id: str) -> dict[str, Any]:
+        return _repo_call(repos_api.suggestions, repo_id)
+
+    @app.post("/api/repos/{repo_id}/suggestions", status_code=202)
+    def repo_refresh_suggestions(repo_id: str, request: Request) -> dict[str, Any]:
+        if store.get_repo(repo_id) is None:
+            raise HTTPException(404, "This repository is not open. Open it from the home page.")
+        ok, hint = ready()
+        if not ok:
+            raise HTTPException(503, hint)
+        _limit(limiter, request)
+        return _repo_call(repos_api.refresh_suggestions, repo_id)
+
+    @app.get("/api/repos/{repo_id}/guide")
+    def repo_guide(repo_id: str) -> dict[str, Any]:
+        return _repo_call(repos_api.guide, repo_id)
+
+    @app.post("/api/repos/{repo_id}/guide", status_code=202)
+    def repo_write_guide(repo_id: str, request: Request) -> dict[str, Any]:
+        if store.get_repo(repo_id) is None:
+            raise HTTPException(404, "This repository is not open. Open it from the home page.")
+        ok, hint = ready()
+        if not ok:
+            raise HTTPException(503, hint)
+        if engine.guide_job(repo_id) is None:  # joining a running job costs nothing
+            _limit(limiter, request, cost=GUIDE_COST)
+        return {"job": engine.start_guide(repo_id).ref()}
+
     # -- jobs ---------------------------------------------------------------------------
     @app.get("/api/jobs/{job_id}")
     def get_job(job_id: str) -> dict[str, Any]:
@@ -253,11 +319,7 @@ def create_app(
         ok, hint = ready()
         if not ok:
             raise HTTPException(503, hint)
-        wait_s = limiter.hit(_client_address(request))
-        if wait_s:
-            minutes = max(1, math.ceil(wait_s / 60))
-            raise HTTPException(429, f"Too many questions from your address. Try again in "
-                                     f"{minutes} minute{'s' if minutes != 1 else ''}.")
+        _limit(limiter, request)
         options = {"follow_links": body.follow_links, "verify": body.verify,
                    "offline": body.offline}
         run = engine.start_run(body.repo_id, question, options)
@@ -292,20 +354,56 @@ def create_app(
     # -- website ------------------------------------------------------------------------
     @app.get("/{path:path}", include_in_schema=False)
     def website(path: str) -> Response:
+        """Static files; pre-rendered public pages as directory indexes (/how-it-works ->
+        how-it-works/index.html); the app shell (app.html) for /app and the legacy /repo and
+        /run paths; the pre-rendered 404.html (status 404) for any other unknown path, or
+        index.html when the build has no 404 page."""
         index = static / "index.html"
         if not index.is_file():
             return HTMLResponse(NOT_BUILT, status_code=503)
-        target = (static / path).resolve()
-        if path and target.is_file() and target.is_relative_to(static.resolve()):
-            headers = {"Cache-Control": "public, max-age=31536000, immutable"} if (
-                path.startswith("assets/")) else {}
-            return FileResponse(target, headers=headers)
-        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+        root = static.resolve()
+        page = {"Cache-Control": "no-cache"}
+        clean = path.strip("/")
+        if clean:
+            target = (static / clean).resolve()
+            if target.is_relative_to(root):
+                if target.is_file():
+                    headers = {"Cache-Control": "public, max-age=31536000, immutable"} if (
+                        clean.startswith("assets/")) else {}
+                    return FileResponse(target, headers=headers)
+                if target.is_dir() and (target / "index.html").is_file():
+                    return FileResponse(target / "index.html", headers=page)
+                html = target.with_name(target.name + ".html")
+                if html.is_file() and html.is_relative_to(root):
+                    return FileResponse(html, headers=page)
+        if _is_app_path(clean):
+            app_html = static / "app.html"
+            return FileResponse(app_html if app_html.is_file() else index, headers=page)
+        not_found = static / "404.html"
+        if clean and not_found.is_file():
+            return FileResponse(not_found, status_code=404, headers=page)
+        return FileResponse(index, headers=page)
 
     return app
 
 
 OPEN_PATHS = {"/api/status", "/api/health"}
+GUIDE_COST = 3  # a field guide counts as this many questions against the rate limit
+
+
+def _is_app_path(path: str) -> bool:
+    first = path.split("/", 1)[0]
+    return first == "app" or (first in ("repo", "run") and "/" in path)
+
+
+def _limit(limiter: _RateLimiter, request: Request, cost: int = 1) -> None:
+    """429 when the caller's address is over its hourly limit (questions, suggestions,
+    guides share it)."""
+    wait_s = limiter.hit(_client_address(request), cost=cost)
+    if wait_s:
+        minutes = max(1, math.ceil(wait_s / 60))
+        raise HTTPException(429, f"Too many questions from your address. Try again in "
+                                 f"{minutes} minute{'s' if minutes != 1 else ''}.")
 
 
 class _RateLimiter:
@@ -316,18 +414,19 @@ class _RateLimiter:
         self._hits: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
 
-    def hit(self, key: str) -> float:
-        """Record a hit; returns 0 if allowed, else seconds until the next one is."""
+    def hit(self, key: str, cost: int = 1) -> float:
+        """Record `cost` hits; returns 0 if allowed, else seconds until they would be."""
         if not self.per_hour:
             return 0.0
+        cost = max(1, min(cost, self.per_hour))
         now = time.monotonic()
         with self._lock:
             hits = self._hits.setdefault(key, deque())
             while hits and now - hits[0] >= 3600:
                 hits.popleft()
-            if len(hits) >= self.per_hour:
-                return 3600 - (now - hits[0])
-            hits.append(now)
+            if len(hits) + cost > self.per_hour:
+                return 3600 - (now - hits[len(hits) + cost - self.per_hour - 1])
+            hits.extend([now] * cost)
             return 0.0
 
 

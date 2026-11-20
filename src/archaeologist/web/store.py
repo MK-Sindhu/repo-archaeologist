@@ -40,6 +40,16 @@ CREATE TABLE IF NOT EXISTS runs (
     answer TEXT
 );
 CREATE INDEX IF NOT EXISTS runs_repo ON runs (repo_id, created_at);
+CREATE TABLE IF NOT EXISTS artifacts (
+    repo_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    head TEXT,
+    version INTEGER NOT NULL,
+    source TEXT,
+    data TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (repo_id, kind)
+);
 """
 
 RUN_FIELDS = (
@@ -101,6 +111,7 @@ class Store:
         with self._lock:
             cur = self._db.execute("DELETE FROM repos WHERE id=?", (repo_id,))
             self._db.execute("DELETE FROM runs WHERE repo_id=?", (repo_id,))
+            self._db.execute("DELETE FROM artifacts WHERE repo_id=?", (repo_id,))
             self._db.commit()
             return cur.rowcount > 0
 
@@ -163,3 +174,40 @@ class Store:
             d["options"] = json.loads(d["options"])
             out.append(d)
         return out
+
+    # -- artifacts (survey, suggestions, guide: per repository, per HEAD) ------------------
+    def put_artifact(self, repo_id: str, kind: str, *, head: str | None, version: int,
+                     data: dict[str, Any], source: str | None = None) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO artifacts (repo_id, kind, head, version, source, data, "
+                "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (repo_id, kind, head, int(version), source, json.dumps(data), now_iso()),
+            )
+            self._db.commit()
+
+    def get_artifact(self, repo_id: str, kind: str) -> dict[str, Any] | None:
+        """{head, version, source, data, created_at} or None."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT head, version, source, data, created_at FROM artifacts "
+                "WHERE repo_id=? AND kind=?", (repo_id, kind),
+            ).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["data"] = json.loads(d["data"])
+        return d
+
+    def valid_artifact(self, repo_id: str, kind: str, *, head: str | None,
+                       version: int) -> dict[str, Any] | None:
+        """The artifact's data when it was made for `head` (full sha) with `version`."""
+        art = self.get_artifact(repo_id, kind)
+        if art is None or art["version"] != version or not head or art["head"] != head:
+            return None
+        return art["data"]
+
+    def delete_artifact(self, repo_id: str, kind: str) -> None:
+        with self._lock:
+            self._db.execute("DELETE FROM artifacts WHERE repo_id=? AND kind=?", (repo_id, kind))
+            self._db.commit()

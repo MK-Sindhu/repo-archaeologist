@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "build:client": "tsc -b && vite build",
+    "prerender": "node scripts/prerender.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",

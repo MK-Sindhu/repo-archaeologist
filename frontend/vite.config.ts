@@ -1,19 +1,23 @@
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { frontendRoot, outDir } from "./scripts/outdir.mjs";
 
-// Where the build goes:
-// - locally: into the Python package, so FastAPI serves the site (src/archaeologist/web/static)
-// - on Vercel (VERCEL is set by the platform): "dist", the outputDirectory in vercel.json
-// - FRONTEND_OUT_DIR overrides both
-const outDir =
-  process.env.FRONTEND_OUT_DIR || (process.env.VERCEL ? "dist" : "../src/archaeologist/web/static");
-
+// Two HTML entries with the same app: index.html (the public pages; scripts/prerender.mjs then
+// writes one pre-rendered copy per public route) and app.html (the app under /app, never
+// pre-rendered). See scripts/outdir.mjs for where the build goes.
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir,
+    outDir: outDir(),
     emptyOutDir: true,
     sourcemap: false,
+    rollupOptions: {
+      input: {
+        index: resolve(frontendRoot, "index.html"),
+        app: resolve(frontendRoot, "app.html"),
+      },
+    },
   },
   server: {
     port: 5173,

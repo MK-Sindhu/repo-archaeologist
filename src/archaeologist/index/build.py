@@ -23,11 +23,13 @@ from typing import Any, Protocol
 from ..models import Chunk
 from ..refs import commit_ref
 from .chunkers import MARKDOWN_EXTS, PLAIN_DOC_EXTS, RST_EXTS, CommitLike, chunk_file, commit_chunk
+from .outline import capabilities as outline_capabilities
 from .store import KINDS, HybridIndex
 
 logger = logging.getLogger(__name__)
 
-CHUNKER_VERSION = "1"  # bump when chunk ids/text change so existing indexes are rebuilt
+CHUNKER_VERSION = "2"  # bump when chunk ids/text change so existing indexes are rebuilt
+# 2: functions/classes of TypeScript, Go, Rust, ... from index/outline.py (was 60-line windows)
 
 DEFAULT_INCLUDE: tuple[str, ...] = (
     # code
@@ -233,6 +235,8 @@ def _fingerprint(
 ) -> str:
     spec = {
         "chunker": CHUNKER_VERSION,
+        # installing, removing or upgrading a grammar changes how files are chunked
+        "outline": outline_capabilities(),
         "include": sorted(include),
         "exclude": sorted(exclude),
         "max_file_bytes": max_file_bytes,

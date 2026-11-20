@@ -1,4 +1,4 @@
-/** Live progress of a clone/index job, from its event stream. */
+/** Live progress of a job (clone + index, or writing a field guide), from its event stream. */
 
 import { useEffect, useState } from "react";
 import { streams } from "../api/client";
@@ -22,6 +22,16 @@ function stageText(p: Progress): string {
       return of("Indexing commits");
     case "embed":
       return of("Embedding");
+    case "survey":
+      return "Surveying the history";
+    case "suggest":
+      return "Writing suggestions";
+    case "gather":
+      return "Gathering the repository's facts";
+    case "write":
+      return "Writing the guide";
+    case "check":
+      return "Checking every claim";
     default:
       return p.message || p.stage;
   }
@@ -48,7 +58,7 @@ export function JobProgress({ jobId, onDone, onError }: Props) {
         else if (ev.type === "log") setNotices((n) => [...n, ev]);
         else if (ev.status === "done") onDone(ev.repo ?? null);
         else if (ev.status === "error") {
-          const message = ev.error ?? "Indexing failed.";
+          const message = ev.error ?? "The job failed.";
           setError(message);
           onError?.(message);
         }

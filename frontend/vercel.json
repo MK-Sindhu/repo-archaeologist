@@ -4,5 +4,16 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/app", "destination": "/app.html" },
+    { "source": "/app/:path*", "destination": "/app.html" },
+    { "source": "/repo/:path*", "destination": "/app.html" },
+    { "source": "/run/:path*", "destination": "/app.html" },
+    { "source": "/how-it-works", "destination": "/how-it-works/index.html" },
+    { "source": "/examples", "destination": "/examples/index.html" },
+    { "source": "/examples/:slug", "destination": "/examples/:slug/index.html" },
+    { "source": "/self-host", "destination": "/self-host/index.html" },
+    { "source": "/faq", "destination": "/faq/index.html" }
+  ]
 }

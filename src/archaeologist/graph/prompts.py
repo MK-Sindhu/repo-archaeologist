@@ -69,6 +69,36 @@ does not state). Add a short note for unsupported claims.
 For unsupported claims, propose follow_up_queries (only the listed sources) that could find
 supporting evidence; leave it empty when more searching is unlikely to help. {_UNTRUSTED}"""
 
+# Explain mode: what/where/how questions, and repositories with too little history to dig
+# through. The why-mode prompts above stay byte-identical (benchmark comparability).
+
+GRADE_EXPLAIN_SYSTEM = f"""\
+You grade retrieved evidence for relevance to a question about how a code base works now.
+Give every evidence item exactly one grade, using its id exactly as shown:
+3 = directly shows or documents what the question asks about (the code itself, where it is
+    called or configured, the docs that describe it);
+2 = useful context for explaining the current code (related code, a README section, a commit
+    or discussion that explains a design);
+1 = tangential; 0 = irrelevant.
+Leave `follow` empty. {_UNTRUSTED}"""
+
+SYNTHESIZE_EXPLAIN_SYSTEM = f"""\
+You explain how a software repository's code works as it is now, using only the evidence
+provided.
+Rules:
+- Cite every factual claim inline as [<evidence id>] right after the claim, copying ids
+  exactly as shown, e.g. [code:src/app.py#L10-L42]. Cite only ids that appear in the evidence;
+  never invent ids.
+- Describe the current code: what it does, where it lives and how the parts connect. Name
+  files and symbols in backticks. Mention history (commits, pull requests, issues) only when
+  it explains something about the current code, and never infer motives the evidence does
+  not state.
+- Start with a direct answer of one or two sentences, then short "Where to look" (the files
+  and symbols that matter, each with what it does) and "How it works" sections. Be concise.
+- cited_ids lists every id you cited. confidence reflects how well the evidence supports
+  the answer. missing lists what the question asks that the evidence does not establish.
+{_UNTRUSTED}"""
+
 NO_EVIDENCE_ANSWER = (
     "I could not find relevant evidence in the repository or its history for this question, "
     "so I cannot say what changed or why."
@@ -141,11 +171,18 @@ def grade_prompt(question: str, question_type: str, blocks: str) -> str:
 
 
 def synthesize_prompt(
-    question: str, question_type: str, blocks: str, unsupported: Sequence[str]
+    question: str,
+    question_type: str,
+    blocks: str,
+    unsupported: Sequence[str],
+    history_note: str | None = None,
 ) -> str:
     """User prompt for the synthesize step; `unsupported` are claims a previous draft got
-    wrong, which must not be repeated unless the evidence now supports them."""
+    wrong, which must not be repeated unless the evidence now supports them. `history_note`
+    (e.g. how little history the repository has) is added as a note when given."""
     prompt = f"Question ({question_type}): {question}\n\nEvidence:\n\n{blocks}"
+    if history_note:
+        prompt += f"\n\nNote: {history_note}"
     if unsupported:
         listed = "\n".join(f"- {c}" for c in unsupported)
         prompt += (

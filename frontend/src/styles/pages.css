@@ -712,3 +712,199 @@
   font-size: var(--fs-hero);
   max-width: 14ch;
 }
+
+/* -- app home ------------------------------------------------------------------------- */
+
+.apphome {
+  padding-top: clamp(32px, 6vh, 64px);
+}
+
+.apphome__title {
+  font-size: var(--fs-xl);
+}
+
+.apphome__lede {
+  max-width: 56ch;
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: var(--fs-base);
+  line-height: 1.55;
+}
+
+.apphome .open {
+  margin-top: 28px;
+}
+
+.apphome .recent {
+  margin-top: 48px;
+}
+
+/* -- repository: notices, tabs, suggestions ------------------------------------------------ */
+
+.repo__thin {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  max-width: 72ch;
+}
+
+.repo__thin svg,
+.repo__warn svg {
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 32px;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs__tab {
+  position: relative;
+  padding: 12px 14px 11px;
+  border: 0;
+  background: none;
+  color: var(--graphite);
+  font-family: var(--font-display);
+  font-stretch: 118%;
+  font-weight: 750;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tabs__tab:first-child {
+  padding-left: 2px;
+}
+
+.tabs__tab:hover {
+  color: var(--ink);
+}
+
+.tabs__tab.is-on {
+  color: var(--ink);
+}
+
+.tabs__tab.is-on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--ink);
+}
+
+.tabs__tab:first-child.is-on::after {
+  left: 2px;
+}
+
+.tabpanel {
+  min-height: 240px;
+}
+
+.tabpanel .ask {
+  margin-top: 28px;
+}
+
+.suggest {
+  display: grid;
+  gap: 12px;
+  margin: 2px 0 6px;
+}
+
+.suggest__row {
+  display: grid;
+  gap: 6px;
+}
+
+.suggest__title {
+  font-size: var(--fs-xs);
+  color: var(--graphite);
+}
+
+.suggest__list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.qchip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.qchip:hover {
+  border-color: var(--ink);
+}
+
+.qchip:active {
+  background: var(--paper-2);
+}
+
+.suggest__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+}
+
+/* a button that reads as a link, inside running text */
+.linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.linkish:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* -- reopen ------------------------------------------------------------------------------ */
+
+.reopen {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+
+.reopen__title {
+  font-size: var(--fs-xl);
+  overflow-wrap: anywhere;
+}
+
+.reopen__text {
+  max-width: 60ch;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.reopen .job {
+  width: min(560px, 100%);
+}

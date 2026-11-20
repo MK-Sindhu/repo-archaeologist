@@ -1,73 +1,84 @@
-import { ArrowUpRight, RefreshCw, TriangleAlert } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from "react";
-import { api, ApiError } from "../api/client";
-import type { RepoSummary, RunOptions, RunSummary } from "../api/types";
+/** /app/repo/:id — a repository: what it is (facts), and three tabs: Ask (suggested
+ *  questions, the question box, past questions), Map (a newcomer's survey: site plan, history,
+ *  hotspots, file panels with biographies) and Guide (a cited field guide, on request). */
+
+import { ArrowUpRight, Info, RefreshCw, TriangleAlert } from "lucide-react";
+import { type KeyboardEvent, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../api/client";
+import { repoSlugFromId } from "../api/repoId";
+import type { RepoSummary } from "../api/types";
 import { JobProgress } from "../components/JobProgress";
 import { useDocumentTitle } from "../hooks";
-import { duration, num, plural, relativeTime } from "../lib/format";
+import { num, plural, relativeTime } from "../lib/format";
 import { Link, navigate, paths } from "../router";
 import { NotFound } from "./NotFound";
+import { AskTab } from "./repo/AskTab";
+import { Reopen } from "./repo/Reopen";
+import { type RepoTab, TABS, useRepoView } from "./repo/urlState";
 
-const STATUS_TEXT: Record<RunSummary["status"], string> = {
-  queued: "Waiting",
-  running: "Digging",
-  done: "Answered",
-  error: "Failed",
-};
+const MapTab = lazy(() => import("./repo/MapTab"));
+const GuideTab = lazy(() => import("./repo/GuideTab"));
+
+const TAB_TEXT: Record<RepoTab, string> = { ask: "Ask", map: "Map", guide: "Guide" };
+const THIN = 3; // commits; at or below this there is little history to dig through
 
 export function Repo({ id }: { id: string }) {
   const [repo, setRepo] = useState<RepoSummary | null>(null);
   const [missing, setMissing] = useState(false);
-  const [runs, setRuns] = useState<RunSummary[] | null>(null);
-  const [question, setQuestion] = useState("");
-  const [options, setOptions] = useState<RunOptions>({ follow_links: true, verify: true, offline: false });
-  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [question, setQuestion] = useState("");
+  const [view, setView] = useRepoView();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const tabRefs = useRef(new Map<RepoTab, HTMLButtonElement>());
+  const [focusAsk, setFocusAsk] = useState(0);
   useDocumentTitle(repo?.name ?? "");
 
-  useEffect(() => {
-    setRepo(null);
+  const loadRepo = useCallback(() => {
     setMissing(false);
+    setLoadError(null);
     api
       .repo(id)
       .then(setRepo)
-      .catch((e) => (e?.status === 404 ? setMissing(true) : setError(e.message)));
+      .catch((e) => (e?.status === 404 ? setMissing(true) : setLoadError(e.message)));
   }, [id]);
-
-  const loadRuns = useCallback(() => {
-    api.runs(id).then(setRuns).catch(() => setRuns((r) => r ?? []));
-  }, [id]);
-  useEffect(loadRuns, [loadRuns]);
-  const active = runs?.some((r) => r.status === "running" || r.status === "queued");
   useEffect(() => {
-    if (!active) return;
-    const t = setInterval(loadRuns, 5000);
-    return () => clearInterval(t);
-  }, [active, loadRuns]);
+    setRepo(null);
+    loadRepo();
+  }, [loadRepo]);
 
-  if (missing) return <NotFound what="repository" />;
+  // "Ask why" from the map: switch to Ask, then focus the filled-in box
+  useEffect(() => {
+    if (!focusAsk || view.tab !== "ask") return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [focusAsk, view.tab]);
+  const askWhy = useCallback(
+    (q: string) => {
+      setQuestion(q);
+      setView({ tab: "ask", file: null });
+      setFocusAsk((n) => n + 1);
+    },
+    [setView],
+  );
 
-  const ask = async (e?: FormEvent) => {
-    e?.preventDefault();
-    const q = question.trim();
-    if (!q) {
-      setError("Type a question first.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const run = await api.createRun({ repo_id: id, question: q, ...options });
-      navigate(paths.run(run.id));
-    } catch (err) {
-      setBusy(false);
-      setError(err instanceof ApiError || err instanceof Error ? err.message : String(err));
-    }
-  };
-  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask();
-  };
+  if (missing) {
+    const slug = repoSlugFromId(id);
+    if (!slug) return <NotFound what="repository" />;
+    return (
+      <Reopen
+        slug={slug}
+        onReopened={(r) => {
+          if (r && r.id !== id) navigate(paths.repo(r.id), { replace: true });
+          else loadRepo();
+        }}
+      />
+    );
+  }
+
   const reindex = async () => {
     setError(null);
     try {
@@ -77,16 +88,31 @@ export function Repo({ id }: { id: string }) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
-  const toggle = (key: keyof RunOptions) => setOptions((o) => ({ ...o, [key]: !o[key] }));
+
+  const commits = repo?.counts?.commit ?? null;
+  const thin = commits !== null && commits <= THIN;
+
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const i = TABS.indexOf(view.tab);
+    let next: RepoTab | null = null;
+    if (e.key === "ArrowRight") next = TABS[(i + 1) % TABS.length];
+    else if (e.key === "ArrowLeft") next = TABS[(i - 1 + TABS.length) % TABS.length];
+    else if (e.key === "Home") next = TABS[0];
+    else if (e.key === "End") next = TABS[TABS.length - 1];
+    if (!next) return;
+    e.preventDefault();
+    setView({ tab: next });
+    tabRefs.current.get(next)?.focus();
+  };
 
   return (
     <main className="container repo">
       <nav className="crumbs" aria-label="Breadcrumb">
-        <Link to={paths.home()}>Repositories</Link>
+        <Link to={paths.app()}>Repositories</Link>
       </nav>
       <header className="repo__head">
         <div>
-          <h1 className="display repo__name">{repo?.name ?? " "}</h1>
+          <h1 className="display repo__name">{repo?.name ?? " "}</h1>
           {repo && (
             <p className="repo__facts">
               {repo.web_url ? (
@@ -111,21 +137,31 @@ export function Repo({ id }: { id: string }) {
               )}
               {repo.counts && (
                 <span className="muted">
-                  {num(repo.counts.code)} code · {num(repo.counts.doc)} docs · {num(repo.counts.commit)} commits
+                  {num(repo.counts.code)} code · {plural(repo.counts.doc, "doc")} · {plural(repo.counts.commit, "commit")}
                 </span>
               )}
             </p>
           )}
         </div>
-        <button type="button" className="btn btn-secondary btn-small" onClick={reindex} disabled={!!jobId}>
+        <button type="button" className="btn btn-secondary btn-small" onClick={reindex} disabled={!!jobId || !repo}>
           <RefreshCw size={14} aria-hidden /> Re-index
         </button>
       </header>
+      {loadError && <p className="error-text">{loadError}</p>}
+      {error && <p className="error-text">{error}</p>}
       {repo?.shallow && (
         <p className="note repo__warn">
-          <TriangleAlert size={14} aria-hidden /> This is a shallow clone, so its history is cut off and
-          answers may stop short. Run <span className="mono">git fetch --unshallow</span> in it, then
-          re-index.
+          <TriangleAlert size={14} aria-hidden /> This is a shallow clone, so its history is cut off and answers may
+          stop short. Run <span className="mono">git fetch --unshallow</span> in it, then re-index.
+        </p>
+      )}
+      {thin && commits !== null && (
+        <p className="note repo__thin">
+          <Info size={14} aria-hidden />
+          <span>
+            This repository has {commits === 0 ? "no commits" : plural(commits, "commit")}, so there's little history to
+            dig through. Answers will explain the code as it is now.
+          </span>
         </p>
       )}
       {jobId && (
@@ -139,72 +175,50 @@ export function Repo({ id }: { id: string }) {
         />
       )}
 
-      <form className="ask" onSubmit={ask}>
-        <label htmlFor="question" className="ask__label">
-          Ask why the code is the way it is
-        </label>
-        <textarea
-          id="question"
-          className="field ask__input"
-          rows={3}
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={onKey}
-          placeholder="Why does backoff() cap the delay at 30 seconds?"
-          disabled={busy}
-        />
-        <div className="ask__row">
-          <fieldset className="ask__options">
-            <legend className="visually-hidden">Options</legend>
-            <label className="check">
-              <input type="checkbox" checked={options.follow_links} onChange={() => toggle("follow_links")} />
-              Follow links to pull requests and issues
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={options.verify} onChange={() => toggle("verify")} />
-              Check every claim
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={options.offline} onChange={() => toggle("offline")} />
-              Offline (local git only)
-            </label>
-          </fieldset>
-          <button type="submit" className="btn btn-primary ask__go" disabled={busy}>
-            Ask
+      <div className="tabs" role="tablist" aria-label="Repository views" onKeyDown={onTabKey}>
+        {TABS.map((t) => (
+          <button
+            key={t}
+            ref={(el) => {
+              if (el) tabRefs.current.set(t, el);
+            }}
+            type="button"
+            role="tab"
+            id={`tab-${t}`}
+            aria-selected={view.tab === t}
+            aria-controls={`panel-${t}`}
+            tabIndex={view.tab === t ? 0 : -1}
+            className={view.tab === t ? "tabs__tab is-on" : "tabs__tab"}
+            onClick={() => setView({ tab: t })}
+          >
+            {TAB_TEXT[t]}
           </button>
-        </div>
-        {error && <p className="error-text">{error}</p>}
-      </form>
+        ))}
+      </div>
 
-      <section className="past" aria-labelledby="past-title">
-        <h2 id="past-title" className="eyebrow">
-          Past questions
-        </h2>
-        {runs && runs.length === 0 && (
-          <p className="muted past__empty">No questions yet. Ask one above; the first takes a few minutes.</p>
-        )}
-        {runs && runs.length > 0 && (
-          <ul className="past__list">
-            {runs.map((r) => (
-              <li key={r.id}>
-                <Link to={paths.run(r.id)} className="past__row">
-                  <span className="past__q">{r.question}</span>
-                  <span className="past__meta">
-                    <span className={`past__status is-${r.status}`}>
-                      {(r.status === "running" || r.status === "queued") && <span className="live-dot" aria-hidden />}
-                      {STATUS_TEXT[r.status]}
-                    </span>
-                    {r.confidence && <span>{r.confidence} confidence</span>}
-                    {r.status === "done" && <span>{plural(r.citations, "source")}</span>}
-                    {r.elapsed_s !== null && <span className="mono">{duration(r.elapsed_s)}</span>}
-                    <span className="muted">{relativeTime(r.created_at)}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {TABS.map((t) => (
+        <div
+          key={t}
+          id={`panel-${t}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${t}`}
+          className="tabpanel"
+          hidden={view.tab !== t}
+        >
+          {t === "ask" && view.tab === "ask" && (
+            <AskTab repoId={id} question={question} setQuestion={setQuestion} inputRef={inputRef} thinHistory={thin} />
+          )}
+          {t !== "ask" && view.tab === t && repo && (
+            <Suspense fallback={<p className="muted map__msg" aria-busy="true" />}>
+              {t === "map" ? (
+                <MapTab repo={repo} view={view} setView={setView} onAskWhy={askWhy} />
+              ) : (
+                <GuideTab repo={repo} />
+              )}
+            </Suspense>
+          )}
+        </div>
+      ))}
     </main>
   );
 }

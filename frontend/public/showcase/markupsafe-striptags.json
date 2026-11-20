@@ -1,0 +1,1444 @@
+{
+ "slug": "markupsafe-striptags",
+ "repo": {
+  "slug": "pallets/markupsafe",
+  "web_url": "https://github.com/pallets/markupsafe",
+  "language": "Python",
+  "commits": 869
+ },
+ "recorded_at": "2026-11-20T21:45:37+00:00",
+ "run": {
+  "id": "a1e6d624dcd9",
+  "repo_id": "pallets__markupsafe-b323a0be",
+  "question": "Why does Markup.striptags collect the text between tags into a list in a single pass, instead of removing tags from the string one at a time?",
+  "status": "done",
+  "options": {
+   "follow_links": true,
+   "verify": true,
+   "offline": false
+  },
+  "model": "gemini-3.5-flash",
+  "created_at": "2026-11-20T21:44:44+00:00",
+  "finished_at": "2026-11-20T21:45:37+00:00",
+  "elapsed_s": 43.8,
+  "confidence": "high",
+  "citations": 4,
+  "error": null,
+  "events": [
+   {
+    "type": "status",
+    "status": "queued",
+    "at": 0.0
+   },
+   {
+    "type": "status",
+    "status": "running",
+    "at": 0.0
+   },
+   {
+    "type": "step",
+    "node": "analyze",
+    "at": 3.2,
+    "summary": "why question; targets Markup.striptags; queries code='def striptags', commits='striptags single pass performance', prs='striptags implementation list join', docs='Markup.striptags method details'",
+    "analysis": {
+     "question_type": "why",
+     "targets": [
+      {
+       "path": null,
+       "symbol": "Markup.striptags"
+      }
+     ],
+     "queries": [
+      {
+       "source": "code",
+       "query": "def striptags"
+      },
+      {
+       "source": "commits",
+       "query": "striptags single pass performance"
+      },
+      {
+       "source": "prs",
+       "query": "striptags implementation list join"
+      },
+      {
+       "source": "docs",
+       "query": "Markup.striptags method details"
+      }
+     ]
+    }
+   },
+   {
+    "type": "step",
+    "node": "retrieve",
+    "at": 3.3,
+    "summary": "docs 'Markup.striptags method details' -> 6 hits (doc:CHANGES.rst#version-212, doc:CHANGES.rst#version-211, doc:CHANGES.rst#version-214, doc:README.md#examples, doc:docs/escaping.rst#working-with-safe-text, doc:CHANGES.rst#version-215)",
+    "source": "docs",
+    "query": "markup.striptags method details",
+    "evidence": [
+     {
+      "id": "doc:CHANGES.rst#version-212",
+      "kind": "doc",
+      "title": "Version 2.1.2",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/CHANGES.rst",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.031054405392392875,
+      "refs": [],
+      "excerpt": "CHANGES.rst > Version 2.1.2\nVersion 2.1.2\n-------------\n\nReleased 2023-01-17\n\n-   Fix ``striptags`` not stripping tags containing newlines.\n    :issue:`310`",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "CHANGES.rst",
+       "start_line": 104,
+       "end_line": 112
+      }
+     },
+     {
+      "id": "doc:CHANGES.rst#version-211",
+      "kind": "doc",
+      "title": "Version 2.1.1",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/CHANGES.rst",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.030776515151515152,
+      "refs": [],
+      "excerpt": "CHANGES.rst > Version 2.1.1\nVersion 2.1.1\n-------------\n\nReleased 2022-03-14\n\n-   Avoid ambiguous regex matches in ``striptags``. :pr:`293`",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "CHANGES.rst",
+       "start_line": 113,
+       "end_line": 120
+      }
+     },
+     {
+      "id": "doc:CHANGES.rst#version-214",
+      "kind": "doc",
+      "title": "Version 2.1.4",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/CHANGES.rst",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.03057889822595705,
+      "refs": [],
+      "excerpt": "CHANGES.rst > Version 2.1.4\nVersion 2.1.4\n-------------\n\nReleased 2024-01-19\n\n-   Don't use regular expressions for ``striptags``, avoiding a performance\n    issue. :pr:`413`",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "CHANGES.rst",
+       "start_line": 84,
+       "end_line": 92
+      }
+     },
+     {
+      "id": "doc:README.md#examples",
+      "kind": "doc",
+      "title": "Examples",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/README.md",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.03047794966520434,
+      "refs": [],
+      "excerpt": "README.md > MarkupSafe > Examples\n## Examples\n\n```pycon\n>>> from markupsafe import Markup, escape\n\n>>> # escape replaces special characters and wraps in Markup\n>>> escape(\"<script>alert(document.cookie);</script>\")\nMarkup('&lt;script&gt;alert(document.cookie);&lt;/script&gt;')\n\n>>> # wrap in Markup to mark text \"safe\" and prevent escaping\n>>> Markup(\"<strong>Hello</strong>\")\nMarkup('<strong>hello</strong>')\n\n>>> escape(Markup(\"<strong>Hello</strong>\"))\nMarkup('<strong>hello</strong>')\n\n>>> # Markup is a str subclass\n>>> # methods and operators escape their arguments\n>>> template = Markup(\"Hell",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "README.md",
+       "start_line": 12,
+       "end_line": 34
+      }
+     },
+     {
+      "id": "doc:docs/escaping.rst#working-with-safe-text",
+      "kind": "doc",
+      "title": "Working With Safe Text",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/docs/escaping.rst",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.03036576949620428,
+      "refs": [],
+      "excerpt": "docs/escaping.rst > Working With Safe Text\nWorking With Safe Text\n======================\n\n.. autofunction:: escape\n\n.. autoclass:: Markup\n    :members: escape, unescape, striptags",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "docs/escaping.rst",
+       "start_line": 3,
+       "end_line": 11
+      }
+     },
+     {
+      "id": "doc:CHANGES.rst#version-215",
+      "kind": "doc",
+      "title": "Version 2.1.5",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/CHANGES.rst",
+      "source": "search:docs",
+      "date": null,
+      "score": 0.030090497737556562,
+      "refs": [],
+      "excerpt": "CHANGES.rst > Version 2.1.5\nVersion 2.1.5\n-------------\n\nReleased 2024-02-02\n\n-   Fix ``striptags`` not collapsing spaces. :issue:`417`",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "CHANGES.rst",
+       "start_line": 76,
+       "end_line": 83
+      }
+     }
+    ]
+   },
+   {
+    "type": "step",
+    "node": "retrieve",
+    "at": 3.3,
+    "summary": "code 'def striptags' -> 6 hits (code:src/markupsafe/__init__.py#L199-L238, code:tests/test_markupsafe.py#L77-L89, code:src/markupsafe/__init__.py#L285-L286, code:src/markupsafe/__init__.py#L367-L389, code:src/markupsafe/__init__.py#L276-L2\u2026",
+    "source": "code",
+    "query": "def striptags",
+    "evidence": [
+     {
+      "id": "code:src/markupsafe/__init__.py#L199-L238",
+      "kind": "code",
+      "title": "Markup.striptags in src/markupsafe/__init__.py",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L199-L238",
+      "source": "search:code",
+      "date": null,
+      "score": 0.03278688524590164,
+      "refs": [],
+      "excerpt": "src/markupsafe/__init__.py:199-238 Markup.striptags\n    def striptags(self, /) -> str:\n        \"\"\":meth:`unescape` the markup, remove tags, and normalize\n        whitespace to single spaces.\n\n        >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n        'Main \u00bb About'\n        \"\"\"\n        value = str(self)\n        parts = []\n        pos = 0\n\n        while (start := value.find(\"<\", pos)) != -1:\n            if value.startswith(\"<!--\", start):\n                # comment\n                if (end := value.find(\"-->\", start + 4)) == -1:\n                    # unclosed\n                    break\n",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "src/markupsafe/__init__.py",
+       "start_line": 199,
+       "end_line": 238,
+       "symbol": "Markup.striptags"
+      }
+     },
+     {
+      "id": "code:tests/test_markupsafe.py#L77-L89",
+      "kind": "code",
+      "title": "test_escaping in tests/test_markupsafe.py",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/tests/test_markupsafe.py#L77-L89",
+      "source": "search:code",
+      "date": null,
+      "score": 0.030834914611005692,
+      "refs": [],
+      "excerpt": "tests/test_markupsafe.py:77-89 test_escaping\ndef test_escaping() -> None:\n    assert escape(\"\\\"<>&'\") == \"&#34;&lt;&gt;&amp;&#39;\"\n    assert (\n        Markup(\n            \"<!-- outer comment -->\"\n            \"<em>Foo &amp; Bar\"\n            \" <!-- inner comment about <em> -->\\n \"\n            \"</em>\"\n            \"<!-- comment\\nwith\\nnewlines\\n-->\"\n            \"<meta content='tag\\nwith\\nnewlines'>\"\n        ).striptags()\n        == \"Foo & Bar\"\n    )",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "tests/test_markupsafe.py",
+       "start_line": 77,
+       "end_line": 89,
+       "symbol": "test_escaping"
+      }
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L285-L286",
+      "kind": "code",
+      "title": "Markup.strip in src/markupsafe/__init__.py",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L285-L286",
+      "source": "search:code",
+      "date": null,
+      "score": 0.026655348047538198,
+      "refs": [],
+      "excerpt": "src/markupsafe/__init__.py:285-286 Markup.strip\n    def strip(self, chars: str | None = None, /) -> te.Self:\n        return self.__class__(super().strip(chars))",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "src/markupsafe/__init__.py",
+       "start_line": 285,
+       "end_line": 286,
+       "symbol": "Markup.strip"
+      }
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L367-L389",
+      "kind": "code",
+      "title": "class _MarkupEscapeHelper in src/markupsafe/__init__.py",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L367-L389",
+      "source": "search:code",
+      "date": null,
+      "score": 0.02661401098901099,
+      "refs": [],
+      "excerpt": "src/markupsafe/__init__.py:367-389 _MarkupEscapeHelper\nclass _MarkupEscapeHelper:\n    \"\"\"Helper for :meth:`Markup.__mod__`.\"\"\"\n    __slots__ = (\"obj\", \"escape\")\n    def __init__(self, obj: t.Any, escape: _TPEscape) -> None:\n        ...\n    def __getitem__(self, key: t.Any, /) -> te.Self:\n        ...\n    def __str__(self, /) -> str:\n        ...\n    def __repr__(self, /) -> str:\n        ...\n    def __int__(self, /) -> int:\n        ...\n    def __float__(self, /) -> float:\n        ...",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "src/markupsafe/__init__.py",
+       "start_line": 367,
+       "end_line": 389,
+       "symbol": "_MarkupEscapeHelper"
+      }
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L276-L277",
+      "kind": "code",
+      "title": "Markup.lstrip in src/markupsafe/__init__.py",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L276-L277",
+      "source": "search:code",
+      "date": null,
+      "score": 0.025678061306371368,
+      "refs": [],
+      "excerpt": "src/markupsafe/__init__.py:276-277 Markup.lstrip\n    def lstrip(self, chars: str | None = None, /) -> te.Self:\n        return self.__class__(super().lstrip(chars))",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "src/markupsafe/__init__.py",
+       "start_line": 276,
+       "end_line": 277,
+       "symbol": "Markup.lstrip"
+      }
+     },
+     {
+      "id": "code:src/markupsafe/_speedups.c#L173-L194",
+      "kind": "code",
+      "title": "src/markupsafe/_speedups.c (module)",
+      "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/_speedups.c#L173-L194",
+      "source": "search:code",
+      "date": null,
+      "score": 0.02519288301054952,
+      "refs": [],
+      "excerpt": "src/markupsafe/_speedups.c:173-194 module\nstatic PyMethodDef module_methods[] = {\n\t{\"_escape_inner\", (PyCFunction)escape_unicode, METH_O, NULL},\n\t{NULL, NULL, 0, NULL}  /* Sentinel */\n};\n\nstatic PyModuleDef_Slot module_slots[] = {\n#ifdef Py_mod_multiple_interpreters  // Python 3.12+\n\t{Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},\n#endif\n#ifdef Py_mod_gil  // Python 3.13+\n\t{Py_mod_gil, Py_MOD_GIL_NOT_USED},\n#endif\n\t{0, NULL}  /* Sentinel */\n};\n\nstatic struct PyModuleDef module_definition = {\n\t.m_base = PyModuleDef_HEAD_INIT,\n\t.m_name = \"markupsafe._speedups\",\n\t.m_size = 0",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "path": "src/markupsafe/_speedups.c",
+       "start_line": 173,
+       "end_line": 194
+      }
+     }
+    ]
+   },
+   {
+    "type": "step",
+    "node": "retrieve",
+    "at": 3.3,
+    "summary": "commits 'striptags single pass performance' -> 6 hits (commit:750e22b, commit:df5d581, commit:a24df39, commit:ff06d77, commit:60a6512, commit:24512e7)",
+    "source": "commits",
+    "query": "striptags single pass performance",
+    "evidence": [
+     {
+      "id": "commit:750e22b453480bced197396b03779d62e9ac209b",
+      "kind": "commit",
+      "title": "improve striptags performance",
+      "url": "https://github.com/pallets/markupsafe/commit/750e22b453480bced197396b03779d62e9ac209b",
+      "source": "search:commits",
+      "date": "2024-01-19T13:32:51-08:00",
+      "score": 0.03252247488101534,
+      "refs": [
+       "pr:413"
+      ],
+      "excerpt": "commit 750e22b by David Lord on 2024-01-19\n\nimprove striptags performance\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "750e22b"
+      }
+     },
+     {
+      "id": "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+      "kind": "commit",
+      "title": "improve performance of `striptags`",
+      "url": "https://github.com/pallets/markupsafe/commit/df5d58175f4bef854fb673bdb321aea3aba21993",
+      "source": "search:commits",
+      "date": "2026-04-10T11:35:23+02:00",
+      "score": 0.03252247488101534,
+      "refs": [
+       "pr:522"
+      ],
+      "excerpt": "commit df5d581 by Krzysztof Magusiak on 2026-04-10\n\nimprove performance of `striptags`\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "Krzysztof Magusiak",
+       "short_sha": "df5d581"
+      }
+     },
+     {
+      "id": "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+      "kind": "commit",
+      "title": "improve striptags performance (#413)",
+      "url": "https://github.com/pallets/markupsafe/commit/a24df39e1bb01c1ca69363a97520719d2d307793",
+      "source": "search:commits",
+      "date": "2024-01-19T13:39:29-08:00",
+      "score": 0.031746031746031744,
+      "refs": [
+       "pr:413"
+      ],
+      "excerpt": "commit a24df39 by David Lord on 2024-01-19\n\nimprove striptags performance (#413)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "a24df39"
+      }
+     },
+     {
+      "id": "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+      "kind": "commit",
+      "title": "fix performance regression in striptags (#522)",
+      "url": "https://github.com/pallets/markupsafe/commit/ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+      "source": "search:commits",
+      "date": "2026-10-01T14:53:02-07:00",
+      "score": 0.03125,
+      "refs": [
+       "pr:522"
+      ],
+      "excerpt": "commit ff06d77 by David Lord on 2026-10-01\n\nfix performance regression in striptags (#522)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "ff06d77"
+      }
+     },
+     {
+      "id": "commit:60a6512315d0ce05e6788808f80be526f2084b3f",
+      "kind": "commit",
+      "title": "striptags collapses spaces correctly (#418)",
+      "url": "https://github.com/pallets/markupsafe/commit/60a6512315d0ce05e6788808f80be526f2084b3f",
+      "source": "search:commits",
+      "date": "2024-02-02T07:45:31-08:00",
+      "score": 0.030309988518943745,
+      "refs": [
+       "pr:418"
+      ],
+      "excerpt": "commit 60a6512 by David Lord on 2024-02-02\n\nstriptags collapses spaces correctly (#418)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntests/test_markupsafe.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "60a6512"
+      }
+     },
+     {
+      "id": "commit:24512e7f45c4154ff3e70ec50998e3e224ad1071",
+      "kind": "commit",
+      "title": "Merge pull request #293 from pallets/striptags-regex",
+      "url": "https://github.com/pallets/markupsafe/commit/24512e7f45c4154ff3e70ec50998e3e224ad1071",
+      "source": "search:commits",
+      "date": "2022-03-14T09:01:01-07:00",
+      "score": 0.030303030303030304,
+      "refs": [
+       "pr:293"
+      ],
+      "excerpt": "commit 24512e7 by David Lord on 2022-03-14\n\nMerge pull request #293 from pallets/striptags-regex\n\navoid ambiguous regex in striptags\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntests/test_markupsafe.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "24512e7"
+      }
+     }
+    ]
+   },
+   {
+    "type": "step",
+    "node": "retrieve",
+    "at": 4.2,
+    "summary": "prs 'striptags implementation list join' -> 0 hits",
+    "source": "prs",
+    "query": "striptags implementation list join"
+   },
+   {
+    "type": "step",
+    "node": "trace_history",
+    "at": 5.9,
+    "summary": "src/markupsafe/__init__.py L199-238 (Markup.striptags) -> 6 commits (commit:df5d581, commit:f38ca06, commit:872a117, commit:0b6bee0, commit:e1b2934, commit:084c62a); tests/test_markupsafe.py L77-89 (test_escaping) -> 6 commits (commit:dcb1\u2026",
+    "evidence": [
+     {
+      "id": "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+      "kind": "commit",
+      "title": "improve performance of `striptags`",
+      "url": "https://github.com/pallets/markupsafe/commit/df5d58175f4bef854fb673bdb321aea3aba21993",
+      "source": "history",
+      "date": "2026-04-10T11:35:23+02:00",
+      "score": 0.0,
+      "refs": [
+       "pr:522"
+      ],
+      "excerpt": "improve performance of `striptags`\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -199,30 +199,40 @@\n     def striptags(self, /) -> str:\n         \"\"\":meth:`unescape` the markup, remove tags, and normalize\n         whitespace to single spaces.\n \n         >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n         'Main \u00bb About'\n         \"\"\"\n         value = str(self)\n-\n-        # Look for comments then tags separately. Otherwise, a comment that\n- ",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "Krzysztof Magusiak",
+       "short_sha": "df5d581"
+      }
+     },
+     {
+      "id": "commit:f38ca06034499d140849d9d0715356f7e169c59a",
+      "kind": "commit",
+      "title": "use uv",
+      "url": "https://github.com/pallets/markupsafe/commit/f38ca06034499d140849d9d0715356f7e169c59a",
+      "source": "history",
+      "date": "2025-05-28T18:49:20-07:00",
+      "score": 0.0,
+      "refs": [
+       "pr:496"
+      ],
+      "excerpt": "use uv\n\nFiles: .devcontainer/on-create-command.sh, .github/workflows/lock.yaml, .github/workflows/pre-commit.yaml, .github/workflows/publish.yaml, .github/workflows/tests.yaml, .gitignore, .pre-commit-config.yaml, .readthedocs.yaml, MANIFEST.in, pyproject.toml, requirements/build.in, requirements/build.txt, requirements/dev.in, requirements/dev.txt, requirements/docs.in, requirements/docs.txt, requirements/tests.in, requirements/tests.txt, requirements/typing.in, requirements/typing.txt, setup.py, src/markupsafe/__init__.py, tox.ini, uv.lock\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "f38ca06"
+      }
+     },
+     {
+      "id": "commit:872a11798b670f246197bb22b6f68214fe0ad382",
+      "kind": "commit",
+      "title": "Merge remote-tracking branch 'origin/2.1.x'",
+      "url": "https://github.com/pallets/markupsafe/commit/872a11798b670f246197bb22b6f68214fe0ad382",
+      "source": "history",
+      "date": "2024-02-02T08:38:06-08:00",
+      "score": 0.0,
+      "refs": [],
+      "excerpt": "Merge remote-tracking branch 'origin/2.1.x'\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py, tests/test_markupsafe.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "872a117"
+      }
+     },
+     {
+      "id": "commit:0b6bee071fbd8d3171fb1ac4fb669baace808438",
+      "kind": "commit",
+      "title": "collapse spaces after stripping tags",
+      "url": "https://github.com/pallets/markupsafe/commit/0b6bee071fbd8d3171fb1ac4fb669baace808438",
+      "source": "history",
+      "date": "2024-01-24T16:53:37-08:00",
+      "score": 0.0,
+      "refs": [
+       "pr:418"
+      ],
+      "excerpt": "collapse spaces after stripping tags\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py, tests/test_markupsafe.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -154,43 +154,44 @@\n     def striptags(self) -> str:\n         \"\"\":meth:`unescape` the markup, remove tags, and normalize\n         whitespace to single spaces.\n \n         >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n         'Main \u00bb About'\n         \"\"\"\n-        # collapse spaces\n-        value = \" \".join(self.split())\n+        value =",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "Jeff Dairiki",
+       "short_sha": "0b6bee0"
+      }
+     },
+     {
+      "id": "commit:e1b29340f413289d8e01124168fa3f478b8cfb94",
+      "kind": "commit",
+      "title": "simplify using assignment expressions",
+      "url": "https://github.com/pallets/markupsafe/commit/e1b29340f413289d8e01124168fa3f478b8cfb94",
+      "source": "history",
+      "date": "2024-01-19T14:57:57-08:00",
+      "score": 0.0,
+      "refs": [],
+      "excerpt": "simplify using assignment expressions\n\nFiles: src/markupsafe/__init__.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -135,43 +135,29 @@\n     def striptags(self, /) -> str:\n         \"\"\":meth:`unescape` the markup, remove tags, and normalize\n         whitespace to single spaces.\n \n         >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n         'Main \u00bb About'\n         \"\"\"\n         # collapse spaces\n         value = \" \".join(self.split())\n \n         # Look for comments then tags separately",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "e1b2934"
+      }
+     },
+     {
+      "id": "commit:084c62a289540e360904e998332a8bcd3edd969b",
+      "kind": "commit",
+      "title": "Merge branch '2.1.x'",
+      "url": "https://github.com/pallets/markupsafe/commit/084c62a289540e360904e998332a8bcd3edd969b",
+      "source": "history",
+      "date": "2024-01-19T14:55:58-08:00",
+      "score": 0.0,
+      "refs": [],
+      "excerpt": "Merge branch '2.1.x'\n\nFiles: .github/workflows/publish.yaml, CHANGES.rst, src/markupsafe/__init__.py",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "084c62a"
+      }
+     },
+     {
+      "id": "commit:dcb170b127137880729ac66f03cb590fff562225",
+      "kind": "commit",
+      "title": "simplify speedups implementation",
+      "url": "https://github.com/pallets/markupsafe/commit/dcb170b127137880729ac66f03cb590fff562225",
+      "source": "history",
+      "date": "2024-04-19T13:30:17-07:00",
+      "score": 0.0,
+      "refs": [
+       "pr:437"
+      ],
+      "excerpt": "simplify speedups implementation\n\nco-authored-by: Carson Burr <carsonwburr@gmail.com>\n\nFiles: CHANGES.rst, bench.py, pyproject.toml, src/markupsafe/__init__.py, src/markupsafe/_native.py, src/markupsafe/_speedups.c, src/markupsafe/_speedups.pyi, tests/conftest.py, tests/test_escape.py, tests/test_exception_custom_html.py, tests/test_leak.py, tests/test_markupsafe.py\n\nDiff:\ndiff --git a/tests/test_markupsafe.py b/tests/test_markupsafe.py\n--- a/tests/test_markupsafe.py\n+++ b/tests/test_markupsafe.py\n@@ -79,13 +77,13 @@\n-def test_escaping(escape: TPEscape) -> None:\n+def test_escaping() -> None:\n ",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "dcb170b"
+      }
+     },
+     {
+      "id": "commit:a4f3da9148b7e87a7bc97ff8f53c6625af5f6de3",
+      "kind": "commit",
+      "title": "type check tests",
+      "url": "https://github.com/pallets/markupsafe/commit/a4f3da9148b7e87a7bc97ff8f53c6625af5f6de3",
+      "source": "history",
+      "date": "2023-09-07T11:02:03-07:00",
+      "score": 0.0,
+      "refs": [
+       "pr:400"
+      ],
+      "excerpt": "type check tests\n\nFiles: pyproject.toml, requirements/typing.in, requirements/typing.txt, tests/__init__.py, tests/conftest.py, tests/test_escape.py, tests/test_exception_custom_html.py, tests/test_leak.py, tests/test_markupsafe.py\n\nDiff:\ndiff --git a/tests/test_markupsafe.py b/tests/test_markupsafe.py\n--- a/tests/test_markupsafe.py\n+++ b/tests/test_markupsafe.py\n@@ -70,13 +79,13 @@\n-def test_escaping(escape):\n+def test_escaping(escape: TPEscape) -> None:\n     assert escape(\"\\\"<>&'\") == \"&#34;&lt;&gt;&amp;&#39;\"\n     assert (\n         Markup(\n             \"<!-- outer comment -->\"\n             ",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "a4f3da9"
+      }
+     },
+     {
+      "id": "commit:e49d257126d09937b1bf5e2b2173238df729fb13",
+      "kind": "commit",
+      "title": "match newlines when stripping tags",
+      "url": "https://github.com/pallets/markupsafe/commit/e49d257126d09937b1bf5e2b2173238df729fb13",
+      "source": "history",
+      "date": "2022-06-13T15:04:23+01:00",
+      "score": 0.0,
+      "refs": [
+       "pr:311"
+      ],
+      "excerpt": "match newlines when stripping tags\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py, tests/test_markupsafe.py\n\nDiff:\ndiff --git a/tests/test_markupsafe.py b/tests/test_markupsafe.py\n--- a/tests/test_markupsafe.py\n+++ b/tests/test_markupsafe.py\n@@ -70,11 +70,13 @@\n def test_escaping(escape):\n     assert escape(\"\\\"<>&'\") == \"&#34;&lt;&gt;&amp;&#39;\"\n     assert (\n         Markup(\n             \"<!-- outer comment -->\"\n             \"<em>Foo &amp; Bar\"\n             \"<!-- inner comment about <em> -->\"\n             \"</em>\"\n+            \"<!-- comment\\nwith\\nnewlines\\n-->\"\n+            \"<meta content='t",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "Peter Hill",
+       "short_sha": "e49d257"
+      }
+     },
+     {
+      "id": "commit:b15d9d6c848bfef272d6091ce02e5c528ec381a0",
+      "kind": "commit",
+      "title": "avoid ambiguous regex in striptags",
+      "url": "https://github.com/pallets/markupsafe/commit/b15d9d6c848bfef272d6091ce02e5c528ec381a0",
+      "source": "history",
+      "date": "2022-03-14T08:49:47-07:00",
+      "score": 0.0,
+      "refs": [
+       "pr:293"
+      ],
+      "excerpt": "avoid ambiguous regex in striptags\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py, tests/test_markupsafe.py\n\nDiff:\ndiff --git a/tests/test_markupsafe.py b/tests/test_markupsafe.py\n--- a/tests/test_markupsafe.py\n+++ b/tests/test_markupsafe.py\n@@ -70,3 +70,11 @@\n def test_escaping(escape):\n     assert escape(\"\\\"<>&'\") == \"&#34;&lt;&gt;&amp;&#39;\"\n-    assert Markup(\"<em>Foo &amp; Bar</em>\").striptags() == \"Foo & Bar\"\n+    assert (\n+        Markup(\n+            \"<!-- outer comment -->\"\n+            \"<em>Foo &amp; Bar\"\n+            \"<!-- inner comment about <em> -->\"\n+            \"</em>\"\n+       ",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "b15d9d6"
+      }
+     },
+     {
+      "id": "commit:ef4a8399ce4fee85d112eb474c5e05e0ddda14a9",
+      "kind": "commit",
+      "title": "some str methods no longer escape their argument",
+      "url": "https://github.com/pallets/markupsafe/commit/ef4a8399ce4fee85d112eb474c5e05e0ddda14a9",
+      "source": "history",
+      "date": "2023-09-15T09:27:53-07:00",
+      "score": 0.0,
+      "refs": [],
+      "excerpt": "some str methods no longer escape their argument\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -202,2 +200,2 @@\n     def strip(self, chars: str | None = None, /) -> te.Self:\n-        return self.__class__(super().strip(self.escape(chars)))\n+        return self.__class__(super().strip(chars))",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "ef4a839"
+      }
+     },
+     {
+      "id": "commit:8f5de90d601eb4b649175a988ff5af42141619aa",
+      "kind": "commit",
+      "title": "implement str methods directly",
+      "url": "https://github.com/pallets/markupsafe/commit/8f5de90d601eb4b649175a988ff5af42141619aa",
+      "source": "history",
+      "date": "2023-09-14T09:28:27-07:00",
+      "score": 0.0,
+      "refs": [
+       "pr:400"
+      ],
+      "excerpt": "implement str methods directly\n\nwrapper wasn't accurate with types, required extra calls and instance checks\n\nFiles: src/markupsafe/__init__.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -186,17 +210,2 @@\n-    __getitem__ = _simple_escaping_wrapper(str.__getitem__)\n-    capitalize = _simple_escaping_wrapper(str.capitalize)\n-    title = _simple_escaping_wrapper(str.title)\n-    lower = _simple_escaping_wrapper(str.lower)\n-    upper = _simple_escaping_wrapper(str.upper)\n-    replace = _simple_esc",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Lord",
+       "short_sha": "8f5de90"
+      }
+     },
+     {
+      "id": "commit:04d7d4dae151b7ad44e7ae99a3c2aca79bab6abc",
+      "kind": "commit",
+      "title": "improve typing for `_simple_escaping_wrapper`",
+      "url": "https://github.com/pallets/markupsafe/commit/04d7d4dae151b7ad44e7ae99a3c2aca79bab6abc",
+      "source": "history",
+      "date": "2023-04-12T12:07:46+02:00",
+      "score": 0.0,
+      "refs": [
+       "pr:376"
+      ],
+      "excerpt": "improve typing for `_simple_escaping_wrapper`\n\nFiles: CHANGES.rst, src/markupsafe/__init__.py\n\nDiff:\ndiff --git a/src/markupsafe/__init__.py b/src/markupsafe/__init__.py\n--- a/src/markupsafe/__init__.py\n+++ b/src/markupsafe/__init__.py\n@@ -180,21 +180,16 @@\n-    for method in (\n-        \"__getitem__\",\n-        \"capitalize\",\n-        \"title\",\n-        \"lower\",\n-        \"upper\",\n-        \"replace\",\n-        \"ljust\",\n-        \"rjust\",\n-        \"lstrip\",\n-        \"rstrip\",\n-        \"center\",\n-        \"strip\",\n-        \"translate\",\n-        \"expandtabs\",\n-        \"swapcase\",\n-        \"zfill\",\n-    ",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "David Salvisberg",
+       "short_sha": "04d7d4d"
+      }
+     }
+    ]
+   },
+   {
+    "type": "step",
+    "node": "grade",
+    "at": 9.9,
+    "summary": "30 new items in 3 batches, 5 kept; 5 kept in total; frontier pr:413, pr:522, pr:496, pr:437",
+    "grades": [
+     {
+      "id": "code:src/markupsafe/__init__.py#L199-L238",
+      "score": 3,
+      "reason": "The code shows Markup.striptags using a single pass to collect parts into a list."
+     },
+     {
+      "id": "code:tests/test_markupsafe.py#L77-L89",
+      "score": 1,
+      "reason": "Test case for striptags."
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L285-L286",
+      "score": 0,
+      "reason": "Irrelevant strip method."
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L367-L389",
+      "score": 0,
+      "reason": "Irrelevant helper class."
+     },
+     {
+      "id": "code:src/markupsafe/__init__.py#L276-L277",
+      "score": 0,
+      "reason": "Irrelevant lstrip method."
+     },
+     {
+      "id": "code:src/markupsafe/_speedups.c#L173-L194",
+      "score": 0,
+      "reason": "Irrelevant C speedups module definition."
+     },
+     {
+      "id": "commit:750e22b453480bced197396b03779d62e9ac209b",
+      "score": 2,
+      "reason": "Commit improving striptags performance."
+     },
+     {
+      "id": "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+      "score": 2,
+      "reason": "Commit improving striptags performance."
+     },
+     {
+      "id": "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+      "score": 2,
+      "reason": "Commit improving striptags performance."
+     },
+     {
+      "id": "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+      "score": 2,
+      "reason": "Commit fixing performance regression in striptags."
+     },
+     {
+      "id": "commit:60a6512315d0ce05e6788808f80be526f2084b3f",
+      "score": 1,
+      "reason": "Commit ensuring striptags collapses spaces correctly."
+     },
+     {
+      "id": "commit:24512e7f45c4154ff3e70ec50998e3e224ad1071",
+      "score": 1,
+      "reason": "Commit related to striptags implementation details."
+     },
+     {
+      "id": "doc:CHANGES.rst#version-212",
+      "score": 0,
+      "reason": "Unrelated change version."
+     },
+     {
+      "id": "doc:CHANGES.rst#version-211",
+      "score": 0,
+      "reason": "Unrelated change version."
+     },
+     {
+      "id": "doc:CHANGES.rst#version-214",
+      "score": 1,
+      "reason": "Mentions avoiding regex performance issues for striptags."
+     },
+     {
+      "id": "doc:README.md#examples",
+      "score": 0,
+      "reason": "Examples of Markup and escape usage."
+     },
+     {
+      "id": "doc:docs/escaping.rst#working-with-safe-text",
+      "score": 0,
+      "reason": "Documentation index."
+     },
+     {
+      "id": "doc:CHANGES.rst#version-215",
+      "score": 0,
+      "reason": "Unrelated change version."
+     },
+     {
+      "id": "commit:f38ca06034499d140849d9d0715356f7e169c59a",
+      "score": 1,
+      "reason": "Contains implementation of striptags."
+     },
+     {
+      "id": "commit:872a11798b670f246197bb22b6f68214fe0ad382",
+      "score": 0,
+      "reason": "Merge commit."
+     },
+     {
+      "id": "commit:0b6bee071fbd8d3171fb1ac4fb669baace808438",
+      "score": 1,
+      "reason": "Shows modifications to striptags implementation."
+     },
+     {
+      "id": "commit:e1b29340f413289d8e01124168fa3f478b8cfb94",
+      "score": 1,
+      "reason": "Refactors striptags loop."
+     },
+     {
+      "id": "commit:084c62a289540e360904e998332a8bcd3edd969b",
+      "score": 0,
+      "reason": "Merge commit."
+     },
+     {
+      "id": "commit:dcb170b127137880729ac66f03cb590fff562225",
+      "score": 1,
+      "reason": "Contains test cases for striptags."
+     },
+     {
+      "id": "commit:a4f3da9148b7e87a7bc97ff8f53c6625af5f6de3",
+      "score": 0,
+      "reason": "Unrelated test updates."
+     },
+     {
+      "id": "commit:e49d257126d09937b1bf5e2b2173238df729fb13",
+      "score": 0,
+      "reason": "Unrelated test changes for newlines in tags."
+     },
+     {
+      "id": "commit:b15d9d6c848bfef272d6091ce02e5c528ec381a0",
+      "score": 0,
+      "reason": "Unrelated test changes for striptags."
+     },
+     {
+      "id": "commit:ef4a8399ce4fee85d112eb474c5e05e0ddda14a9",
+      "score": 0,
+      "reason": "Modifies strip instead of striptags."
+     },
+     {
+      "id": "commit:8f5de90d601eb4b649175a988ff5af42141619aa",
+      "score": 0,
+      "reason": "Refactors string methods rather than striptags implementation."
+     },
+     {
+      "id": "commit:04d7d4dae151b7ad44e7ae99a3c2aca79bab6abc",
+      "score": 0,
+      "reason": "Updates typing for escaping wrappers."
+     }
+    ],
+    "kept": [
+     "code:src/markupsafe/__init__.py#L199-L238",
+     "commit:750e22b453480bced197396b03779d62e9ac209b",
+     "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+     "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+     "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873"
+    ],
+    "frontier": [
+     "pr:413",
+     "pr:522",
+     "pr:496",
+     "pr:437"
+    ]
+   },
+   {
+    "type": "step",
+    "node": "follow",
+    "at": 10.4,
+    "summary": "hop 1 fetched pr:413, pr:522, pr:496, pr:437",
+    "evidence": [
+     {
+      "id": "pr:413",
+      "kind": "pr",
+      "title": "improve striptags performance",
+      "url": "https://github.com/pallets/markupsafe/pull/413",
+      "source": "fetch",
+      "date": "2024-01-19T21:39:30Z",
+      "score": 0.0,
+      "refs": [
+       "commit:a24df39e1bb01c1ca69363a97520719d2d307793"
+      ],
+      "excerpt": "Status: merged on 2024-01-19.\n\nThe regular expression method of finding anything between comment or tag marks can be slow on large input, especially if it doesn't contain an end mark. Instead, use some simple `str.find` calls to incrementally remove blocks. The code can be cleaned up in `main` by using `:=` assignment expressions.",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "davidism",
+       "state": "closed",
+       "merged": true
+      }
+     },
+     {
+      "id": "pr:522",
+      "kind": "pr",
+      "title": "fix performance regression in striptags",
+      "url": "https://github.com/pallets/markupsafe/pull/522",
+      "source": "fetch",
+      "date": "2026-10-01T21:53:03Z",
+      "score": 0.0,
+      "refs": [
+       "issue:521",
+       "gh:413",
+       "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873"
+      ],
+      "excerpt": "Status: merged on 2026-10-01.\n\nThe regex implementation was removed in #413 with no clear benchmarks and replaced by a version containing quadratic string manipulation that does not scale. Fixing the implementation by appending sub-strings to a list and by doing a single loop over the value.\r\n\r\nfixes #521\r\n\r\nBenchmarks in https://github.com/odoo/odoo/pull/257889\n\nDiscussion:\n- @davidism: Thanks. I've been getting rid of regex for parsing in general (except for small things), as it was leading to too many performance issues on its own. My initial refactors here and in Werkzeug were a bit too na",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "kmagusiak",
+       "state": "closed",
+       "merged": true
+      }
+     },
+     {
+      "id": "pr:496",
+      "kind": "pr",
+      "title": "use uv",
+      "url": "https://github.com/pallets/markupsafe/pull/496",
+      "source": "fetch",
+      "date": "2025-05-29T02:10:05Z",
+      "score": 0.0,
+      "refs": [
+       "commit:730482daf543d99366a61791382dc5b2ea9b8047"
+      ],
+      "excerpt": "Status: merged on 2025-05-29.\n\nUse uv to manage dev dependencies. Move tox config to pyproject. Use new license metadata. Simplify free-threaded env setup. Use new cibuildwheel config for free-threaded.",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "davidism",
+       "state": "closed",
+       "merged": true
+      }
+     },
+     {
+      "id": "pr:437",
+      "kind": "pr",
+      "title": "simplify speedups implementation",
+      "url": "https://github.com/pallets/markupsafe/pull/437",
+      "source": "fetch",
+      "date": "2024-04-19T20:58:50Z",
+      "score": 0.0,
+      "refs": [
+       "commit:0a9df38daebbe0773256497bd33c8105278ffb06"
+      ],
+      "excerpt": "Status: merged on 2024-04-19.\n\nOnly implement the actual string replacement in C. `escape`, `escape_silent`, and `soft_str` are always pure Python. This greatly simplifies the C code, as it no longer needs to do type checks, `__html__` check, or string conversion. No longer requires a circular import between `Markup` and `escape`. The tests also become simpler, not requiring fixtures for each function. Moving all that to Python only slows down the benchmark by about 20 nanoseconds, which I find acceptable compared to the simpler code.\r\n\r\n@carsonburr did this when working on a Rust implementati",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "davidism",
+       "state": "closed",
+       "merged": true
+      }
+     }
+    ],
+    "hops": 1
+   },
+   {
+    "type": "step",
+    "node": "grade",
+    "at": 11.7,
+    "summary": "4 new items in 1 batch, 2 kept; 7 kept in total; frontier issue:521",
+    "grades": [
+     {
+      "id": "pr:413",
+      "score": 2,
+      "reason": "Provides context on earlier changes to striptags performance."
+     },
+     {
+      "id": "pr:522",
+      "score": 3,
+      "reason": "Directly explains that collecting sub-strings into a list in a single loop fixes quadratic string manipulation scaling issues."
+     },
+     {
+      "id": "pr:496",
+      "score": 0,
+      "reason": "Irrelevant dependency management PR."
+     },
+     {
+      "id": "pr:437",
+      "score": 1,
+      "reason": "Tangential PR about speedups implementation."
+     }
+    ],
+    "kept": [
+     "code:src/markupsafe/__init__.py#L199-L238",
+     "pr:522",
+     "commit:750e22b453480bced197396b03779d62e9ac209b",
+     "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+     "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+     "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+     "pr:413"
+    ],
+    "frontier": [
+     "issue:521"
+    ]
+   },
+   {
+    "type": "step",
+    "node": "follow",
+    "at": 11.7,
+    "summary": "hop 2 fetched issue:521",
+    "evidence": [
+     {
+      "id": "issue:521",
+      "kind": "issue",
+      "title": "Performance regression in striptags",
+      "url": "https://github.com/pallets/markupsafe/issues/521",
+      "source": "fetch",
+      "date": "2026-04-07T12:14:35Z",
+      "score": 0.0,
+      "refs": [
+       "pr:413"
+      ],
+      "excerpt": "After the merge of this PR: https://github.com/pallets/markupsafe/pull/413/changes the function `Markup.striptags` has become much slower for larger inputs, contrary to what has been suggested by this PR.  \n\nThis problem has been noticed after benchmarking with arbitrary large inputs: \n\n\n| Case                               | Regex \u00b5s | Current \u00b5s   | Speedup  |\n|----------------------------------------|----------|--------------|----------|\n| plaintext_no_tags_50k_words            | 2937.05  | 2795.78      | 0.95x \u2190 current_implementation |\n| html_entities_only_no_tags_5k               | 4843.",
+      "text": null,
+      "partial": false,
+      "meta": {
+       "author": "MohamedKasem99",
+       "state": "closed"
+      }
+     }
+    ],
+    "hops": 2
+   },
+   {
+    "type": "step",
+    "node": "grade",
+    "at": 12.5,
+    "summary": "1 new item in 1 batch, 1 kept; 8 kept in total",
+    "grades": [
+     {
+      "id": "issue:521",
+      "score": 2,
+      "reason": "Discusses the performance of Markup.striptags and references the PR that changed its implementation."
+     }
+    ],
+    "kept": [
+     "code:src/markupsafe/__init__.py#L199-L238",
+     "pr:522",
+     "commit:750e22b453480bced197396b03779d62e9ac209b",
+     "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+     "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+     "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+     "pr:413",
+     "issue:521"
+    ],
+    "frontier": []
+   },
+   {
+    "type": "step",
+    "node": "synthesize",
+    "at": 18.8,
+    "summary": "draft from 8 items, confidence high, cites pr:522, issue:521, code:src/markupsafe/__init__.py#L199-L238, pr:413",
+    "draft": {
+     "confidence": "high",
+     "cited_ids": [
+      "pr:522",
+      "issue:521",
+      "code:src/markupsafe/__init__.py#L199-L238",
+      "pr:413"
+     ],
+     "missing": []
+    }
+   },
+   {
+    "type": "step",
+    "node": "verify",
+    "at": 43.8,
+    "summary": "8 claims checked, all supported",
+    "unsupported": [],
+    "retrying": false
+   },
+   {
+    "type": "step",
+    "node": "finalize",
+    "at": 43.8,
+    "summary": "4 citations, 8 evidence items, 2 hops",
+    "answer": {
+     "answer": "Markup.striptags collects text into a list in a single pass to fix a performance regression caused by quadratic string manipulation [pr:522]. This approach ensures the function scales linearly with input size, whereas previous incremental removal methods were significantly slower on large inputs [issue:521, pr:522].\n\n### What changed\nThe implementation was updated to use a single `while` loop that scans for tags using `str.find`, appends the text between tags to a list named `parts`, and joins them once at the end [code:src/markupsafe/__init__.py#L199-L238, pr:522]. This replaced a \"naive\" refactor that had attempted to remove regular expressions by incrementally removing blocks, which resulted in quadratic complexity [pr:413, pr:522].\n\n### Why\nThe change was motivated by benchmarks showing that the previous incremental approach was up to 1000x slower than the original regex-based version for large inputs [issue:521]. While the maintainers wanted to avoid regex due to its own performance issues and deep call stacks, the initial replacement was inefficient because it performed repeated string manipulations [pr:522, issue:521]. The single-pass list-collection method matches the style used for other scanners in Werkzeug to provide better performance without using regex [pr:522].",
+     "citations": [
+      "pr:522",
+      "issue:521",
+      "code:src/markupsafe/__init__.py#L199-L238",
+      "pr:413"
+     ],
+     "dropped_citations": [],
+     "unsupported_claims": [],
+     "confidence": "high",
+     "missing": [],
+     "evidence": [
+      {
+       "id": "code:src/markupsafe/__init__.py#L199-L238",
+       "kind": "code",
+       "title": "Markup.striptags in src/markupsafe/__init__.py",
+       "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L199-L238",
+       "source": "search:code",
+       "date": null,
+       "score": 3.0,
+       "refs": [],
+       "excerpt": "src/markupsafe/__init__.py:199-238 Markup.striptags\n    def striptags(self, /) -> str:\n        \"\"\":meth:`unescape` the markup, remove tags, and normalize\n        whitespace to single spaces.\n\n        >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n        'Main \u00bb About'\n        \"\"\"\n        value = str(self)\n        parts = []\n        pos = 0\n\n        while (start := value.find(\"<\", pos)) != -1:\n            if value.startswith(\"<!--\", start):\n                # comment\n                if (end := value.find(\"-->\", start + 4)) == -1:\n                    # unclosed\n                    break\n",
+       "text": "src/markupsafe/__init__.py:199-238 Markup.striptags\n    def striptags(self, /) -> str:\n        \"\"\":meth:`unescape` the markup, remove tags, and normalize\n        whitespace to single spaces.\n\n        >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n        'Main \u00bb About'\n        \"\"\"\n        value = str(self)\n        parts = []\n        pos = 0\n\n        while (start := value.find(\"<\", pos)) != -1:\n            if value.startswith(\"<!--\", start):\n                # comment\n                if (end := value.find(\"-->\", start + 4)) == -1:\n                    # unclosed\n                    break\n\n                end += 3\n            else:\n                # tag\n                if (end := value.find(\">\", start)) == -1:\n                    # unclosed\n                    break\n\n                end += 1\n\n            parts.append(value[pos:start])\n            pos = end\n\n        # found at least one tag, combine parts\n        if pos > 0:\n            # any trailing data after the last closed tag\n            parts.append(value[pos:])\n            value = \"\".join(parts)\n\n        # collapse spaces\n        value = \" \".join(value.split())\n        # unescape the processed value using the current class\n        return self.__class__(value).unescape()",
+       "partial": false,
+       "meta": {
+        "path": "src/markupsafe/__init__.py",
+        "start_line": 199,
+        "end_line": 238,
+        "symbol": "Markup.striptags"
+       }
+      },
+      {
+       "id": "pr:522",
+       "kind": "pr",
+       "title": "fix performance regression in striptags",
+       "url": "https://github.com/pallets/markupsafe/pull/522",
+       "source": "fetch",
+       "date": "2026-10-01T21:53:03Z",
+       "score": 3.0,
+       "refs": [
+        "issue:521",
+        "gh:413",
+        "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873"
+       ],
+       "excerpt": "Status: merged on 2026-10-01.\n\nThe regex implementation was removed in #413 with no clear benchmarks and replaced by a version containing quadratic string manipulation that does not scale. Fixing the implementation by appending sub-strings to a list and by doing a single loop over the value.\r\n\r\nfixes #521\r\n\r\nBenchmarks in https://github.com/odoo/odoo/pull/257889\n\nDiscussion:\n- @davidism: Thanks. I've been getting rid of regex for parsing in general (except for small things), as it was leading to too many performance issues on its own. My initial refactors here and in Werkzeug were a bit too na",
+       "text": "Status: merged on 2026-10-01.\n\nThe regex implementation was removed in #413 with no clear benchmarks and replaced by a version containing quadratic string manipulation that does not scale. Fixing the implementation by appending sub-strings to a list and by doing a single loop over the value.\r\n\r\nfixes #521\r\n\r\nBenchmarks in https://github.com/odoo/odoo/pull/257889\n\nDiscussion:\n- @davidism: Thanks. I've been getting rid of regex for parsing in general (except for small things), as it was leading to too many performance issues on its own. My initial refactors here and in Werkzeug were a bit too naive, they did speed up normal input but had the same issues as the regex they replaced. I've updated this PR to match the styles I used for other scanners in Werkzeug.",
+       "partial": false,
+       "meta": {
+        "author": "kmagusiak",
+        "state": "closed",
+        "merged": true
+       }
+      },
+      {
+       "id": "commit:750e22b453480bced197396b03779d62e9ac209b",
+       "kind": "commit",
+       "title": "improve striptags performance",
+       "url": "https://github.com/pallets/markupsafe/commit/750e22b453480bced197396b03779d62e9ac209b",
+       "source": "search:commits",
+       "date": "2024-01-19T13:32:51-08:00",
+       "score": 2.0,
+       "refs": [
+        "pr:413"
+       ],
+       "excerpt": "commit 750e22b by David Lord on 2024-01-19\n\nimprove striptags performance\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+       "text": "commit 750e22b by David Lord on 2024-01-19\n\nimprove striptags performance\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+       "partial": false,
+       "meta": {
+        "author": "David Lord",
+        "short_sha": "750e22b"
+       }
+      },
+      {
+       "id": "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+       "kind": "commit",
+       "title": "improve performance of `striptags`",
+       "url": "https://github.com/pallets/markupsafe/commit/df5d58175f4bef854fb673bdb321aea3aba21993",
+       "source": "search:commits",
+       "date": "2026-04-10T11:35:23+02:00",
+       "score": 2.0,
+       "refs": [
+        "pr:522"
+       ],
+       "excerpt": "commit df5d581 by Krzysztof Magusiak on 2026-04-10\n\nimprove performance of `striptags`\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+       "text": "commit df5d581 by Krzysztof Magusiak on 2026-04-10\n\nimprove performance of `striptags`\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+       "partial": false,
+       "meta": {
+        "author": "Krzysztof Magusiak",
+        "short_sha": "df5d581"
+       }
+      },
+      {
+       "id": "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+       "kind": "commit",
+       "title": "improve striptags performance (#413)",
+       "url": "https://github.com/pallets/markupsafe/commit/a24df39e1bb01c1ca69363a97520719d2d307793",
+       "source": "search:commits",
+       "date": "2024-01-19T13:39:29-08:00",
+       "score": 2.0,
+       "refs": [
+        "pr:413"
+       ],
+       "excerpt": "commit a24df39 by David Lord on 2024-01-19\n\nimprove striptags performance (#413)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+       "text": "commit a24df39 by David Lord on 2024-01-19\n\nimprove striptags performance (#413)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+       "partial": false,
+       "meta": {
+        "author": "David Lord",
+        "short_sha": "a24df39"
+       }
+      },
+      {
+       "id": "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+       "kind": "commit",
+       "title": "fix performance regression in striptags (#522)",
+       "url": "https://github.com/pallets/markupsafe/commit/ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+       "source": "search:commits",
+       "date": "2026-10-01T14:53:02-07:00",
+       "score": 2.0,
+       "refs": [
+        "pr:522"
+       ],
+       "excerpt": "commit ff06d77 by David Lord on 2026-10-01\n\nfix performance regression in striptags (#522)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+       "text": "commit ff06d77 by David Lord on 2026-10-01\n\nfix performance regression in striptags (#522)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+       "partial": false,
+       "meta": {
+        "author": "David Lord",
+        "short_sha": "ff06d77"
+       }
+      },
+      {
+       "id": "pr:413",
+       "kind": "pr",
+       "title": "improve striptags performance",
+       "url": "https://github.com/pallets/markupsafe/pull/413",
+       "source": "fetch",
+       "date": "2024-01-19T21:39:30Z",
+       "score": 2.0,
+       "refs": [
+        "commit:a24df39e1bb01c1ca69363a97520719d2d307793"
+       ],
+       "excerpt": "Status: merged on 2024-01-19.\n\nThe regular expression method of finding anything between comment or tag marks can be slow on large input, especially if it doesn't contain an end mark. Instead, use some simple `str.find` calls to incrementally remove blocks. The code can be cleaned up in `main` by using `:=` assignment expressions.",
+       "text": "Status: merged on 2024-01-19.\n\nThe regular expression method of finding anything between comment or tag marks can be slow on large input, especially if it doesn't contain an end mark. Instead, use some simple `str.find` calls to incrementally remove blocks. The code can be cleaned up in `main` by using `:=` assignment expressions.",
+       "partial": false,
+       "meta": {
+        "author": "davidism",
+        "state": "closed",
+        "merged": true
+       }
+      },
+      {
+       "id": "issue:521",
+       "kind": "issue",
+       "title": "Performance regression in striptags",
+       "url": "https://github.com/pallets/markupsafe/issues/521",
+       "source": "fetch",
+       "date": "2026-04-07T12:14:35Z",
+       "score": 2.0,
+       "refs": [
+        "pr:413"
+       ],
+       "excerpt": "After the merge of this PR: https://github.com/pallets/markupsafe/pull/413/changes the function `Markup.striptags` has become much slower for larger inputs, contrary to what has been suggested by this PR.  \n\nThis problem has been noticed after benchmarking with arbitrary large inputs: \n\n\n| Case                               | Regex \u00b5s | Current \u00b5s   | Speedup  |\n|----------------------------------------|----------|--------------|----------|\n| plaintext_no_tags_50k_words            | 2937.05  | 2795.78      | 0.95x \u2190 current_implementation |\n| html_entities_only_no_tags_5k               | 4843.",
+       "text": "After the merge of this PR: https://github.com/pallets/markupsafe/pull/413/changes the function `Markup.striptags` has become much slower for larger inputs, contrary to what has been suggested by this PR.  \n\nThis problem has been noticed after benchmarking with arbitrary large inputs: \n\n\n| Case                               | Regex \u00b5s | Current \u00b5s   | Speedup  |\n|----------------------------------------|----------|--------------|----------|\n| plaintext_no_tags_50k_words            | 2937.05  | 2795.78      | 0.95x \u2190 current_implementation |\n| html_entities_only_no_tags_5k               | 4843.88  | 4818.92      | 0.99x \u2190 current_implementation |\n| comments_only_1k                       | 382.75   | 1985.56      | 5.19x \u2190 regex_old_implementation |\n| comments_containing_tags_1k            | 234.88   | 1243.65      | 5.29x \u2190 regex_old_implementation |\n| comments_only_50k                      | 21047.84 | 21081024.01  | 1001.58x \u2190 regex_old_implementation |\n| comments_containing_tags_50k           | 13948.90 | 11301014.95  | 810.17x \u2190 regex_old_implementation |\n| short_tags_5k                          | 915.32   | 28235.99     | 30.85x \u2190 regex_old_implementation |\n| short_tags_20k                         | 3603.37  | 876001.98    | 243.11x \u2190 regex_old_implementation |\n| short_tags_50k                         | 10648.04 | 9064394.50   | 851.27x \u2190 regex_old_implementation |\n| nested_divs_1k_deep                    | 148.99   | 880.14       | 5.91x \u2190 regex_old_implementation |\n| ne\n\u2026",
+       "partial": false,
+       "meta": {
+        "author": "MohamedKasem99",
+        "state": "closed"
+       }
+      }
+     ],
+     "retrieved": 35,
+     "hops": 2,
+     "usage": {
+      "calls": 8,
+      "input_tokens": 16808,
+      "output_tokens": 9803
+     },
+     "latency_s": 43.708,
+     "model": "gemini-3.5-flash",
+     "mode": "why"
+    }
+   },
+   {
+    "type": "status",
+    "status": "done",
+    "at": 43.8
+   }
+  ],
+  "answer": {
+   "answer": "Markup.striptags collects text into a list in a single pass to fix a performance regression caused by quadratic string manipulation [pr:522]. This approach ensures the function scales linearly with input size, whereas previous incremental removal methods were significantly slower on large inputs [issue:521, pr:522].\n\n### What changed\nThe implementation was updated to use a single `while` loop that scans for tags using `str.find`, appends the text between tags to a list named `parts`, and joins them once at the end [code:src/markupsafe/__init__.py#L199-L238, pr:522]. This replaced a \"naive\" refactor that had attempted to remove regular expressions by incrementally removing blocks, which resulted in quadratic complexity [pr:413, pr:522].\n\n### Why\nThe change was motivated by benchmarks showing that the previous incremental approach was up to 1000x slower than the original regex-based version for large inputs [issue:521]. While the maintainers wanted to avoid regex due to its own performance issues and deep call stacks, the initial replacement was inefficient because it performed repeated string manipulations [pr:522, issue:521]. The single-pass list-collection method matches the style used for other scanners in Werkzeug to provide better performance without using regex [pr:522].",
+   "citations": [
+    "pr:522",
+    "issue:521",
+    "code:src/markupsafe/__init__.py#L199-L238",
+    "pr:413"
+   ],
+   "dropped_citations": [],
+   "unsupported_claims": [],
+   "confidence": "high",
+   "missing": [],
+   "evidence": [
+    {
+     "id": "code:src/markupsafe/__init__.py#L199-L238",
+     "kind": "code",
+     "title": "Markup.striptags in src/markupsafe/__init__.py",
+     "url": "https://github.com/pallets/markupsafe/blob/4e111271b1494995708a9e878a10829b5e10c7ba/src/markupsafe/__init__.py#L199-L238",
+     "source": "search:code",
+     "date": null,
+     "score": 3.0,
+     "refs": [],
+     "excerpt": "src/markupsafe/__init__.py:199-238 Markup.striptags\n    def striptags(self, /) -> str:\n        \"\"\":meth:`unescape` the markup, remove tags, and normalize\n        whitespace to single spaces.\n\n        >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n        'Main \u00bb About'\n        \"\"\"\n        value = str(self)\n        parts = []\n        pos = 0\n\n        while (start := value.find(\"<\", pos)) != -1:\n            if value.startswith(\"<!--\", start):\n                # comment\n                if (end := value.find(\"-->\", start + 4)) == -1:\n                    # unclosed\n                    break\n",
+     "text": "src/markupsafe/__init__.py:199-238 Markup.striptags\n    def striptags(self, /) -> str:\n        \"\"\":meth:`unescape` the markup, remove tags, and normalize\n        whitespace to single spaces.\n\n        >>> Markup(\"Main &raquo;\\t<em>About</em>\").striptags()\n        'Main \u00bb About'\n        \"\"\"\n        value = str(self)\n        parts = []\n        pos = 0\n\n        while (start := value.find(\"<\", pos)) != -1:\n            if value.startswith(\"<!--\", start):\n                # comment\n                if (end := value.find(\"-->\", start + 4)) == -1:\n                    # unclosed\n                    break\n\n                end += 3\n            else:\n                # tag\n                if (end := value.find(\">\", start)) == -1:\n                    # unclosed\n                    break\n\n                end += 1\n\n            parts.append(value[pos:start])\n            pos = end\n\n        # found at least one tag, combine parts\n        if pos > 0:\n            # any trailing data after the last closed tag\n            parts.append(value[pos:])\n            value = \"\".join(parts)\n\n        # collapse spaces\n        value = \" \".join(value.split())\n        # unescape the processed value using the current class\n        return self.__class__(value).unescape()",
+     "partial": false,
+     "meta": {
+      "path": "src/markupsafe/__init__.py",
+      "start_line": 199,
+      "end_line": 238,
+      "symbol": "Markup.striptags"
+     }
+    },
+    {
+     "id": "pr:522",
+     "kind": "pr",
+     "title": "fix performance regression in striptags",
+     "url": "https://github.com/pallets/markupsafe/pull/522",
+     "source": "fetch",
+     "date": "2026-10-01T21:53:03Z",
+     "score": 3.0,
+     "refs": [
+      "issue:521",
+      "gh:413",
+      "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873"
+     ],
+     "excerpt": "Status: merged on 2026-10-01.\n\nThe regex implementation was removed in #413 with no clear benchmarks and replaced by a version containing quadratic string manipulation that does not scale. Fixing the implementation by appending sub-strings to a list and by doing a single loop over the value.\r\n\r\nfixes #521\r\n\r\nBenchmarks in https://github.com/odoo/odoo/pull/257889\n\nDiscussion:\n- @davidism: Thanks. I've been getting rid of regex for parsing in general (except for small things), as it was leading to too many performance issues on its own. My initial refactors here and in Werkzeug were a bit too na",
+     "text": "Status: merged on 2026-10-01.\n\nThe regex implementation was removed in #413 with no clear benchmarks and replaced by a version containing quadratic string manipulation that does not scale. Fixing the implementation by appending sub-strings to a list and by doing a single loop over the value.\r\n\r\nfixes #521\r\n\r\nBenchmarks in https://github.com/odoo/odoo/pull/257889\n\nDiscussion:\n- @davidism: Thanks. I've been getting rid of regex for parsing in general (except for small things), as it was leading to too many performance issues on its own. My initial refactors here and in Werkzeug were a bit too naive, they did speed up normal input but had the same issues as the regex they replaced. I've updated this PR to match the styles I used for other scanners in Werkzeug.",
+     "partial": false,
+     "meta": {
+      "author": "kmagusiak",
+      "state": "closed",
+      "merged": true
+     }
+    },
+    {
+     "id": "commit:750e22b453480bced197396b03779d62e9ac209b",
+     "kind": "commit",
+     "title": "improve striptags performance",
+     "url": "https://github.com/pallets/markupsafe/commit/750e22b453480bced197396b03779d62e9ac209b",
+     "source": "search:commits",
+     "date": "2024-01-19T13:32:51-08:00",
+     "score": 2.0,
+     "refs": [
+      "pr:413"
+     ],
+     "excerpt": "commit 750e22b by David Lord on 2024-01-19\n\nimprove striptags performance\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+     "text": "commit 750e22b by David Lord on 2024-01-19\n\nimprove striptags performance\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+     "partial": false,
+     "meta": {
+      "author": "David Lord",
+      "short_sha": "750e22b"
+     }
+    },
+    {
+     "id": "commit:df5d58175f4bef854fb673bdb321aea3aba21993",
+     "kind": "commit",
+     "title": "improve performance of `striptags`",
+     "url": "https://github.com/pallets/markupsafe/commit/df5d58175f4bef854fb673bdb321aea3aba21993",
+     "source": "search:commits",
+     "date": "2026-04-10T11:35:23+02:00",
+     "score": 2.0,
+     "refs": [
+      "pr:522"
+     ],
+     "excerpt": "commit df5d581 by Krzysztof Magusiak on 2026-04-10\n\nimprove performance of `striptags`\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+     "text": "commit df5d581 by Krzysztof Magusiak on 2026-04-10\n\nimprove performance of `striptags`\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+     "partial": false,
+     "meta": {
+      "author": "Krzysztof Magusiak",
+      "short_sha": "df5d581"
+     }
+    },
+    {
+     "id": "commit:a24df39e1bb01c1ca69363a97520719d2d307793",
+     "kind": "commit",
+     "title": "improve striptags performance (#413)",
+     "url": "https://github.com/pallets/markupsafe/commit/a24df39e1bb01c1ca69363a97520719d2d307793",
+     "source": "search:commits",
+     "date": "2024-01-19T13:39:29-08:00",
+     "score": 2.0,
+     "refs": [
+      "pr:413"
+     ],
+     "excerpt": "commit a24df39 by David Lord on 2024-01-19\n\nimprove striptags performance (#413)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+     "text": "commit a24df39 by David Lord on 2024-01-19\n\nimprove striptags performance (#413)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py\ntox.ini",
+     "partial": false,
+     "meta": {
+      "author": "David Lord",
+      "short_sha": "a24df39"
+     }
+    },
+    {
+     "id": "commit:ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+     "kind": "commit",
+     "title": "fix performance regression in striptags (#522)",
+     "url": "https://github.com/pallets/markupsafe/commit/ff06d77e1ee8cfe62d9e289ccc5bf1f49e4a0873",
+     "source": "search:commits",
+     "date": "2026-10-01T14:53:02-07:00",
+     "score": 2.0,
+     "refs": [
+      "pr:522"
+     ],
+     "excerpt": "commit ff06d77 by David Lord on 2026-10-01\n\nfix performance regression in striptags (#522)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+     "text": "commit ff06d77 by David Lord on 2026-10-01\n\nfix performance regression in striptags (#522)\n\nfiles:\nCHANGES.rst\nsrc/markupsafe/__init__.py",
+     "partial": false,
+     "meta": {
+      "author": "David Lord",
+      "short_sha": "ff06d77"
+     }
+    },
+    {
+     "id": "pr:413",
+     "kind": "pr",
+     "title": "improve striptags performance",
+     "url": "https://github.com/pallets/markupsafe/pull/413",
+     "source": "fetch",
+     "date": "2024-01-19T21:39:30Z",
+     "score": 2.0,
+     "refs": [
+      "commit:a24df39e1bb01c1ca69363a97520719d2d307793"
+     ],
+     "excerpt": "Status: merged on 2024-01-19.\n\nThe regular expression method of finding anything between comment or tag marks can be slow on large input, especially if it doesn't contain an end mark. Instead, use some simple `str.find` calls to incrementally remove blocks. The code can be cleaned up in `main` by using `:=` assignment expressions.",
+     "text": "Status: merged on 2024-01-19.\n\nThe regular expression method of finding anything between comment or tag marks can be slow on large input, especially if it doesn't contain an end mark. Instead, use some simple `str.find` calls to incrementally remove blocks. The code can be cleaned up in `main` by using `:=` assignment expressions.",
+     "partial": false,
+     "meta": {
+      "author": "davidism",
+      "state": "closed",
+      "merged": true
+     }
+    },
+    {
+     "id": "issue:521",
+     "kind": "issue",
+     "title": "Performance regression in striptags",
+     "url": "https://github.com/pallets/markupsafe/issues/521",
+     "source": "fetch",
+     "date": "2026-04-07T12:14:35Z",
+     "score": 2.0,
+     "refs": [
+      "pr:413"
+     ],
+     "excerpt": "After the merge of this PR: https://github.com/pallets/markupsafe/pull/413/changes the function `Markup.striptags` has become much slower for larger inputs, contrary to what has been suggested by this PR.  \n\nThis problem has been noticed after benchmarking with arbitrary large inputs: \n\n\n| Case                               | Regex \u00b5s | Current \u00b5s   | Speedup  |\n|----------------------------------------|----------|--------------|----------|\n| plaintext_no_tags_50k_words            | 2937.05  | 2795.78      | 0.95x \u2190 current_implementation |\n| html_entities_only_no_tags_5k               | 4843.",
+     "text": "After the merge of this PR: https://github.com/pallets/markupsafe/pull/413/changes the function `Markup.striptags` has become much slower for larger inputs, contrary to what has been suggested by this PR.  \n\nThis problem has been noticed after benchmarking with arbitrary large inputs: \n\n\n| Case                               | Regex \u00b5s | Current \u00b5s   | Speedup  |\n|----------------------------------------|----------|--------------|----------|\n| plaintext_no_tags_50k_words            | 2937.05  | 2795.78      | 0.95x \u2190 current_implementation |\n| html_entities_only_no_tags_5k               | 4843.88  | 4818.92      | 0.99x \u2190 current_implementation |\n| comments_only_1k                       | 382.75   | 1985.56      | 5.19x \u2190 regex_old_implementation |\n| comments_containing_tags_1k            | 234.88   | 1243.65      | 5.29x \u2190 regex_old_implementation |\n| comments_only_50k                      | 21047.84 | 21081024.01  | 1001.58x \u2190 regex_old_implementation |\n| comments_containing_tags_50k           | 13948.90 | 11301014.95  | 810.17x \u2190 regex_old_implementation |\n| short_tags_5k                          | 915.32   | 28235.99     | 30.85x \u2190 regex_old_implementation |\n| short_tags_20k                         | 3603.37  | 876001.98    | 243.11x \u2190 regex_old_implementation |\n| short_tags_50k                         | 10648.04 | 9064394.50   | 851.27x \u2190 regex_old_implementation |\n| nested_divs_1k_deep                    | 148.99   | 880.14       | 5.91x \u2190 regex_old_implementation |\n| ne\n\u2026",
+     "partial": false,
+     "meta": {
+      "author": "MohamedKasem99",
+      "state": "closed"
+     }
+    }
+   ],
+   "retrieved": 35,
+   "hops": 2,
+   "usage": {
+    "calls": 8,
+    "input_tokens": 16808,
+    "output_tokens": 9803
+   },
+   "latency_s": 43.708,
+   "model": "gemini-3.5-flash",
+   "mode": "why"
+  }
+ }
+}

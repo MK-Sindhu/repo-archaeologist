@@ -38,9 +38,19 @@ def make(responses, **kw):
         seen.append(request)
         return queue.pop(0)
 
+    kw.setdefault("fallbacks", [])
     llm = GeminiLLM(CFG, api_key="k", transport=httpx.MockTransport(handler),
                     sleep=sleeps.append, **kw)
     return llm, seen, sleeps
+
+
+@pytest.fixture(autouse=True)
+def _fresh_quota_state():
+    from archaeologist import gemini
+
+    gemini._exhausted.clear()
+    yield
+    gemini._exhausted.clear()
 
 
 def body(request):
@@ -89,9 +99,65 @@ def test_daily_quota_fails_fast():
     quota = {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
         {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]}
     llm, seen, sleeps = make([error(429, "quota exceeded", [quota])])
-    with pytest.raises(LLMError, match=r"daily quota .*20/day"):
+    with pytest.raises(LLMError, match=r"daily limit is used up .*gemini-3.5-flash"):
         llm.structured(system="s", prompt="p", schema=Grades)
     assert len(seen) == 1 and sleeps == []
+
+
+DAILY = {"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [
+    {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier", "quotaValue": "20"}]}
+
+
+def test_daily_quota_falls_back_to_the_next_model(caplog):
+    llm, seen, sleeps = make([error(429, "quota", [DAILY]), ok(json.dumps(GRADES)),
+                              ok(json.dumps(GRADES))],
+                             fallbacks=["gemini-2.5-flash", "gemini-3.5-flash-lite"])
+    with caplog.at_level("WARNING", logger="archaeologist.gemini"):
+        assert llm.structured(system="s", prompt="p", schema=Grades).grades
+    assert "/models/gemini-3.5-flash:" in seen[0].url.path
+    assert "/models/gemini-2.5-flash:" in seen[1].url.path
+    assert "thinkingConfig" not in body(seen[1])["generationConfig"]  # 2.x: no thinkingLevel
+    assert "using gemini-2.5-flash" in caplog.text and sleeps == []
+    # the exhausted model is skipped from now on, also by other instances
+    llm.structured(system="s", prompt="p", schema=Grades)
+    assert "/models/gemini-2.5-flash:" in seen[2].url.path and len(seen) == 3
+
+
+def test_every_model_exhausted_says_when_it_resets():
+    llm, seen, _ = make([error(429, "quota", [DAILY])] * 2, fallbacks=["gemini-2.5-flash"])
+    with pytest.raises(LLMError, match=r"every configured model .*midnight Pacific"):
+        llm.text(system="s", prompt="p")
+    assert len(seen) == 2
+
+
+def test_exhaustion_expires_at_the_reset(monkeypatch):
+    from archaeologist import gemini
+
+    gemini._exhausted["gemini-3.5-flash"] = 100.0
+    monkeypatch.setattr(gemini.time, "time", lambda: 50.0)
+    assert gemini._is_exhausted("gemini-3.5-flash")
+    monkeypatch.setattr(gemini.time, "time", lambda: 101.0)
+    assert not gemini._is_exhausted("gemini-3.5-flash")
+
+
+def test_next_reset_is_midnight_pacific():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from archaeologist.gemini import _next_reset
+
+    noon = datetime(2026, 11, 21, 12, 0, tzinfo=ZoneInfo("America/Los_Angeles")).timestamp()
+    reset = datetime.fromtimestamp(_next_reset(noon), ZoneInfo("America/Los_Angeles"))
+    assert (reset.day, reset.hour, reset.minute) == (22, 0, 0)
+
+
+def test_fallbacks_from_environment(monkeypatch):
+    monkeypatch.setenv("ARCH_GEMINI_FALLBACKS", "a-model, b-model")
+    assert GeminiLLM(CFG, api_key="k").fallbacks == ["a-model", "b-model"]
+    monkeypatch.setenv("ARCH_GEMINI_FALLBACKS", "")
+    assert GeminiLLM(CFG, api_key="k").fallbacks == []
+    monkeypatch.delenv("ARCH_GEMINI_FALLBACKS")
+    assert GeminiLLM(CFG, api_key="k").fallbacks[0] == "gemini-3-flash-preview"
 
 
 def test_gives_up_after_max_retries():

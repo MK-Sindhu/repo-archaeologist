@@ -31,6 +31,8 @@ FOLLOWABLE_KINDS = ("commit", "pr", "issue")  # kinds whose refs feed the fronti
 HISTORY_TOP_CODE_HITS = 3  # code hits whose history trace_history takes
 MAX_FOLLOW_UP_QUERIES = 4  # per verify retry
 MAX_WORKERS = 8  # thread pool size for parallel tool / LLM calls inside one node
+EXPLAIN_TYPES = frozenset({"what", "where", "how"})  # answered from the code as it is now
+THIN_HISTORY_COMMITS = 3  # at most this many commits: too little history to dig through
 
 GRADE_ITEM_CHARS = 1_200  # per-item text budget when grading
 GRADE_BATCH_ITEMS = 12
@@ -250,15 +252,37 @@ class AgentNodes:
 
     # analyze ------------------------------------------------------------------------
 
+    def _commit_count(self) -> int | None:
+        counter = getattr(self.toolbox, "commit_count", None)
+        if not callable(counter):
+            return None
+        try:
+            n = counter()
+        except Exception:  # noqa: BLE001 - an unknown count just means "not thin"
+            return None
+        return n if isinstance(n, int) else None
+
+    def _sources(self, state: AgentState) -> list[str]:
+        """Search sources for this run: with thin history there are no pull requests worth
+        searching."""
+        if state.get("history_commits") is not None:
+            return [s for s in self.search_sources if s != "prs"]
+        return self.search_sources
+
     def analyze(self, state: AgentState) -> dict[str, Any]:
         """Classify the question, name code targets and plan one query per enabled source;
-        sources the model gives no query for fall back to the raw question."""
+        sources the model gives no query for fall back to the raw question. Picks the
+        answer mode: "explain" for what/where/how questions and for repositories with at
+        most THIN_HISTORY_COMMITS commits (whose PR search is skipped), else "why"."""
         question = state["question"]
         started_at = state.get("started_at") or time.time()
         usage_start = state.get("usage_start") or self.llm.usage_snapshot()
+        commits = self._commit_count()
+        thin = commits if commits is not None and commits <= THIN_HISTORY_COMMITS else None
+        sources = self._sources({"history_commits": thin})
         raw = self.llm.structured(
             system=prompts.ANALYZE_SYSTEM,
-            prompt=prompts.analyze_prompt(question, self.search_sources, self.use_history),
+            prompt=prompts.analyze_prompt(question, sources, self.use_history),
             schema=Analysis,
             effort=self.llm_config.effort_analyze,
             role="analyze",
@@ -266,16 +290,19 @@ class AgentNodes:
         planned: dict[str, str] = {}
         for q in raw.queries:
             text = q.query.strip()
-            if q.source in self.search_sources and text and q.source not in planned:
+            if q.source in sources and text and q.source not in planned:
                 planned[q.source] = text
-        fallback = [s for s in self.search_sources if s not in planned]
-        queries = [
-            SourceQuery(source=s, query=planned.get(s, question)) for s in self.search_sources
-        ]
+        fallback = [s for s in sources if s not in planned]
+        queries = [SourceQuery(source=s, query=planned.get(s, question)) for s in sources]
         targets = _clean_targets(raw.targets)
         analysis = raw.model_copy(update={"targets": targets, "queries": queries})
+        mode = "explain" if thin is not None or analysis.question_type in EXPLAIN_TYPES else "why"
 
         parts = [f"{analysis.question_type} question"]
+        if thin is not None:
+            parts.append(f"thin history ({_count(thin, 'commit')}): explain mode, no PR search")
+        elif mode == "explain":
+            parts.append("explain mode")
         if targets:
             names = [":".join(x for x in (t.path, t.symbol) if x) for t in targets]
             parts.append("targets " + ", ".join(names))
@@ -289,6 +316,8 @@ class AgentNodes:
             "started_at": started_at,
             "usage_start": usage_start,
             "analysis": analysis,
+            "mode": mode,
+            "history_commits": thin,
             "queries": queries,
             "hops": state.get("hops", 0),
             "retries": state.get("retries", 0),
@@ -397,17 +426,24 @@ class AgentNodes:
         graded = state.get("grades", {})
         new_items = [e for eid, e in evidence.items() if eid not in graded]
 
+        explain = state.get("mode") == "explain"
         new_grades: dict[str, Grade] = {}
         picks: list[str] = []
         batches = _grade_batches(new_items)
-        for grades, follow in _parallel(lambda b: self._grade_batch(question, qtype, b), batches):
+        for grades, follow in _parallel(
+            lambda b: self._grade_batch(question, qtype, b, explain), batches
+        ):
             new_grades.update(grades)
             picks.extend(follow)
+        if explain:  # explaining the current code: no links to follow
+            picks = []
 
         all_grades = {**graded, **new_grades}
         kept = self._rank(all_grades, evidence)
         suggested = add_unique(state.get("suggested", []), picks)
-        frontier = self._frontier(suggested, kept, evidence, state.get("visited", []))
+        frontier = (
+            [] if explain else self._frontier(suggested, kept, evidence, state.get("visited", []))
+        )
 
         if new_items:
             n_new_kept = sum(1 for eid in new_grades if eid in kept)
@@ -429,11 +465,11 @@ class AgentNodes:
         }
 
     def _grade_batch(
-        self, question: str, qtype: str, batch: list[tuple[Evidence, str]]
+        self, question: str, qtype: str, batch: list[tuple[Evidence, str]], explain: bool = False
     ) -> tuple[dict[str, Grade], list[str]]:
         ids = [e.id for e, _ in batch]
         out = self.llm.structured(
-            system=prompts.GRADE_SYSTEM,
+            system=prompts.GRADE_EXPLAIN_SYSTEM if explain else prompts.GRADE_SYSTEM,
             prompt=prompts.grade_prompt(question, qtype, "\n\n".join(b for _, b in batch)),
             schema=Grades,
             effort=self.llm_config.effort_grade,
@@ -446,6 +482,15 @@ class AgentNodes:
                 result[eid] = g.model_copy(update={"id": eid})
         for eid in ids:
             result.setdefault(eid, Grade(id=eid, score=0, reason="not graded by the model"))
+        # A pull request closed without merging did not ship. The prompt says so, but graders
+        # don't always follow it (seen live: a rejected duplicate PR graded 3), so cap it here.
+        for item, _ in batch:
+            grade = result[item.id]
+            if _unmerged_pr(item) and grade.score > UNMERGED_PR_MAX:
+                result[item.id] = grade.model_copy(update={
+                    "score": UNMERGED_PR_MAX,
+                    "reason": f"closed without merging (capped at {UNMERGED_PR_MAX}); {grade.reason}",
+                })
         follow = [r.strip() for r in out.follow if is_ref(r.strip())]
         return result, follow
 
@@ -483,9 +528,11 @@ class AgentNodes:
         return frontier
 
     def route_after_grade(self, state: AgentState) -> str:
-        """Follow refs while there is a frontier, multi-hop is on and hops remain."""
+        """Follow refs while there is a frontier, multi-hop is on and hops remain (never in
+        explain mode)."""
         if (
-            self.config.multi_hop
+            state.get("mode") != "explain"
+            and self.config.multi_hop
             and state.get("frontier")
             and state.get("hops", 0) < self.config.max_hops
         ):
@@ -566,13 +613,22 @@ class AgentNodes:
             )
             return {"draft": draft, "trace": ["synthesize: no relevant evidence; nothing to cite"]}
         analysis = state.get("analysis")
+        explain = state.get("mode") == "explain"
+        thin = state.get("history_commits")
+        note = (
+            f"This repository's history has {_count(thin, 'commit')}; do not infer motives "
+            "from it."
+            if thin is not None
+            else None
+        )
         draft = self.llm.structured(
-            system=prompts.SYNTHESIZE_SYSTEM,
+            system=prompts.SYNTHESIZE_EXPLAIN_SYSTEM if explain else prompts.SYNTHESIZE_SYSTEM,
             prompt=prompts.synthesize_prompt(
                 state["question"],
                 analysis.question_type if analysis else "why",
                 self._blocks(kept),
                 state.get("unsupported", []),
+                note,
             ),
             schema=Draft,
             effort=self.llm_config.effort_synthesize,
@@ -600,7 +656,7 @@ class AgentNodes:
         result = self.llm.structured(
             system=prompts.VERIFY_SYSTEM,
             prompt=prompts.verify_prompt(
-                state["question"], draft.answer, self._blocks(kept), self.search_sources
+                state["question"], draft.answer, self._blocks(kept), self._sources(state)
             ),
             schema=Verification,
             effort=self.llm_config.effort_verify,
@@ -614,7 +670,9 @@ class AgentNodes:
         retries = state.get("retries", 0)
         queries: list[SourceQuery] = []
         if unsupported and retries < self.config.max_verify_retries:
-            queries = self._fresh_queries(result.follow_up_queries, state.get("searched", []))
+            queries = self._fresh_queries(
+                result.follow_up_queries, state.get("searched", []), self._sources(state)
+            )
 
         update: dict[str, Any] = {"unsupported": unsupported, "queries": queries}
         total = len(result.claims)
@@ -638,14 +696,18 @@ class AgentNodes:
         return update
 
     def _fresh_queries(
-        self, proposed: Sequence[SourceQuery], searched: Sequence[str]
+        self,
+        proposed: Sequence[SourceQuery],
+        searched: Sequence[str],
+        sources: Sequence[str] | None = None,
     ) -> list[SourceQuery]:
+        allowed = self.search_sources if sources is None else sources
         done = set(searched)
         out: list[SourceQuery] = []
         for q in proposed:
             text = q.query.strip()
             key = search_key(q.source, text)
-            if q.source in self.search_sources and text and key not in done:
+            if q.source in allowed and text and key not in done:
                 done.add(key)
                 out.append(SourceQuery(source=q.source, query=text))
             if len(out) >= MAX_FOLLOW_UP_QUERIES:
@@ -705,6 +767,7 @@ class AgentNodes:
             usage=usage,
             system="agent",
             latency_s=latency,
+            mode=state.get("mode", "why"),
         )
         return {"answer": answer, "trace": [line]}
 
@@ -712,6 +775,15 @@ class AgentNodes:
 def _graded(item: Evidence, grade: Grade) -> Evidence:
     meta = {**item.meta, "retrieval_score": item.score, "grade_reason": grade.reason}
     return item.model_copy(update={"score": float(grade.score), "meta": meta})
+
+
+UNMERGED_PR_MAX = 1  # highest grade for a pull request that was closed without merging
+
+
+def _unmerged_pr(item: Evidence) -> bool:
+    """A pull request known to be closed without being merged (it never shipped)."""
+    return (item.kind == "pr" and item.meta.get("merged") is False
+            and item.meta.get("state") == "closed")
 
 
 def _grade_batches(items: Sequence[Evidence]) -> list[list[tuple[Evidence, str]]]:

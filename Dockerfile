@@ -25,10 +25,10 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/app/.venv
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-dev --extra embed --no-install-project
+RUN uv sync --frozen --no-dev --extra embed --extra outline --no-install-project
 COPY src/ ./src/
 COPY --from=web /app/src/archaeologist/web/static ./src/archaeologist/web/static
-RUN uv sync --frozen --no-dev --extra embed
+RUN uv sync --frozen --no-dev --extra embed --extra outline
 
 RUN useradd --create-home --uid 1000 app && mkdir -p /data && chown app /data
 USER app

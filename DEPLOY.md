@@ -67,6 +67,7 @@ API (Render → Environment, or `docker run -e`):
 | `ARCH_MAX_REPO_MB` | `500` (Render: `300`) | largest GitHub repository it will clone |
 | `ARCH_CORS_ORIGINS` | `*` | websites allowed to call the API (comma-separated) |
 | `ARCH_EMBEDDER` | FastEmbed (Render: `none`) | `none` = keyword search only (less memory) |
+| `ARCH_GEMINI_FALLBACKS` | `gemini-3-flash-preview, gemini-2.5-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite` | Gemini models to switch to when one's free daily limit is used up (each has its own); empty = no fallback |
 | `ARCH_WEB_ALLOW_LOCAL` | `0` | the container only opens GitHub repositories |
 | `ARCH_HOME` | `/data` | where clones, indexes and question history are kept |
 | `PORT` | `8765` | port to listen on (Render sets it) |
@@ -87,8 +88,13 @@ Website (Vercel):
   - To keep them, use a paid instance with a disk: uncomment `disk:` in `render.yaml`. It
     mounts at `/data`.
   - With 512 MB of memory, keep `ARCH_EMBEDDER=none` and modest `ARCH_MAX_REPO_MB`.
-- **Gemini free tier:** each call takes about 20–40 s, and there is a daily request cap per
-  model. One question uses about 4–10 calls.
+- **Gemini free tier:** each call takes about 20–40 s, and each model has its own daily
+  request cap (`gemini-3.5-flash` allows 20 a day). One question uses about 4–10 calls, so
+  when a model's day is used up the server switches to the next free model
+  (`ARCH_GEMINI_FALLBACKS`) and says so in the question's log. The caps reset at midnight
+  Pacific time.
+- **First start after this update:** indexes are rebuilt once, because functions in
+  TypeScript, JavaScript, Go, Rust and other languages are now indexed one by one.
 
 ## Other hosts
 

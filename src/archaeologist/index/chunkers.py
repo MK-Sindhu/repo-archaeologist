@@ -13,6 +13,7 @@ carries its location even when shown out of context.
 from __future__ import annotations
 
 import ast
+import logging
 import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import PurePosixPath
@@ -20,6 +21,9 @@ from typing import Literal, Protocol
 
 from ..models import Chunk
 from ..refs import code_ref, commit_ref, doc_ref, extract_refs, slugify
+from .outline import Symbol, grammar_for, outline
+
+log = logging.getLogger(__name__)
 
 ChunkKind = Literal["code", "doc"]
 # (first line index, last line index, level, heading text, explicit anchor) - 0-based lines
@@ -426,6 +430,147 @@ def chunk_python(
     return _dedupe(ordered)
 
 
+# -- other languages, from their outline -------------------------------------------------------
+
+_COMMENT_LINE = re.compile(r"^\s*(?://|/\*|\*|#(?![!\[])|--)")
+_CONTAINER_KINDS = {"class", "interface", "enum", "module"}
+_FUNCTION_KINDS = {"function", "method"}
+
+
+def _symbol_tree(symbols: Sequence[Symbol]) -> tuple[list[int], dict[int, list[int]]]:
+    """(indexes of top-level symbols, index -> indexes of direct children) by line nesting."""
+    order = sorted(range(len(symbols)), key=lambda i: (symbols[i].start, -symbols[i].end))
+    top: list[int] = []
+    children: dict[int, list[int]] = {i: [] for i in order}
+    stack: list[int] = []
+    for i in order:
+        s = symbols[i]
+        while stack and not (symbols[stack[-1]].start <= s.start and s.end <= symbols[stack[-1]].end):
+            stack.pop()
+        if stack and symbols[stack[-1]].kind in _CONTAINER_KINDS:
+            children[stack[-1]].append(i)
+        elif not stack:
+            top.append(i)
+        else:  # nested inside a function: covered by that function's chunk
+            continue
+        stack.append(i)
+    return top, children
+
+
+def _comment_start(lines: list[str], start: int, floor: int) -> int:
+    """Extend a definition's first line up over the comment block directly above it, never
+    reaching line `floor` or earlier."""
+    while start - 1 > floor and _COMMENT_LINE.match(lines[start - 2]):
+        start -= 1
+    return start
+
+
+def _outlined_summary(
+    sym: Symbol, kids: Sequence[Symbol], lines: list[str], comment: str, max_header: int = 12
+) -> str:
+    """A container's head, its members' signatures (with their doc summaries) and its last
+    line; member bodies are left to their own chunks."""
+    first_kid = min((k.start for k in kids), default=sym.end + 1)
+    head = lines[sym.start - 1 : min(first_kid - 1, sym.start - 1 + max_header)]
+    out = [ln for ln in head if not _COMMENT_LINE.match(ln)] or lines[sym.start - 1 : sym.start]
+    for k in kids:
+        line = lines[k.start - 1] if 1 <= k.start <= len(lines) else ""
+        indent = line[: len(line) - len(line.lstrip())]
+        if k.doc:
+            out.append(f"{indent}{comment} {k.doc}")
+        out.append(f"{indent}{k.signature}")
+    last = lines[sym.end - 1] if sym.end <= len(lines) else ""
+    if sym.end > sym.start and len(last.strip()) <= 3:  # "}", "end", "};"
+        out.append(last)
+    return "\n".join(out)
+
+
+def chunk_outlined(
+    path: str,
+    source: str,
+    symbols: Sequence[Symbol],
+    *,
+    window: int = DEFAULT_WINDOW,
+    overlap: int = DEFAULT_OVERLAP,
+    max_lines: int = DEFAULT_MAX_LINES,
+) -> list[Chunk]:
+    """Chunk a non-Python file from its outline (see index/outline.py), like `chunk_python`:
+
+    - each function and method is a chunk with its qualified symbol, including the comment
+      block directly above it; definitions longer than `max_lines` are split into windows;
+    - classes, interfaces, enums and modules with members get a summary chunk (head, member
+      signatures and doc summaries); without members, their full text;
+    - code outside every definition (imports, constants, top-level statements) becomes
+      "module" chunks.
+    """
+    lines = _split_lines(source)
+    n = len(lines)
+    syms = [s for s in symbols if 1 <= s.start <= s.end <= n]
+    if not syms:
+        return chunk_text(path, source, window, overlap)
+    comment = "#" if grammar_for(path) == "ruby" else "//"
+    top, children = _symbol_tree(syms)
+    helper = _PythonChunker(path, lines, window, overlap, max_lines)
+    chunks: list[Chunk] = []
+    covered = [False] * (n + 1)
+
+    def emit(i: int, floor: int) -> None:
+        s = syms[i]
+        start = _comment_start(lines, s.start, floor)
+        kids = children.get(i, [])
+        word = "" if s.kind in _FUNCTION_KINDS or s.kind == "other" else f"{s.kind} "
+        title = f"{word}{s.qualified} in {path}"
+        node = s.kind if s.kind != "other" else "definition"
+        if kids:
+            chunks.append(
+                _code_chunk(
+                    path, lines, start, s.end, symbol=s.qualified, node=node, title=title,
+                    body=_outlined_summary(s, [syms[k] for k in kids], lines, comment),
+                )
+            )
+            prev = s.start
+            for k in kids:
+                emit(k, prev)
+                prev = syms[k].end
+        elif s.end - start + 1 > max_lines:
+            chunks.extend(
+                _windows(path, lines, start, s.end, window=window, overlap=overlap,
+                         symbol=s.qualified, node=node, title=title)
+            )
+        else:
+            chunks.append(_code_chunk(path, lines, start, s.end, symbol=s.qualified, node=node, title=title))
+
+    prev_end = 0
+    for i in top:
+        s = syms[i]
+        start = _comment_start(lines, s.start, prev_end)
+        emit(i, prev_end)
+        for line in range(start, s.end + 1):
+            covered[line] = True
+        prev_end = max(prev_end, s.end)
+
+    # module-level code: runs of uncovered lines, trimmed of blank lines
+    segments: list[tuple[int, int]] = []
+    run_start: int | None = None
+    for line in range(1, n + 2):
+        free = line <= n and not covered[line]
+        if free and run_start is None:
+            run_start = line
+        elif not free and run_start is not None:
+            a, b = run_start, line - 1
+            while a <= b and not lines[a - 1].strip():
+                a += 1
+            while b >= a and not lines[b - 1].strip():
+                b -= 1
+            if a <= b:
+                segments.append((a, b))
+            run_start = None
+    helper._module_chunks(segments)
+    chunks.extend(helper.chunks)
+    ordered = sorted(chunks, key=lambda c: (c.start_line or 0, -(c.end_line or 0)))
+    return _dedupe(ordered)
+
+
 # -- markdown / rst --------------------------------------------------------------------------
 
 _ATX = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
@@ -645,8 +790,10 @@ def commit_chunk(commit: CommitLike) -> Chunk:
 
 def chunk_file(path: str, source: str) -> list[Chunk]:
     """Pick the chunker for a file by extension: Python -> `chunk_python`, markdown ->
-    `chunk_markdown`, rst -> `chunk_rst`, .txt -> `chunk_text` as docs, anything else ->
-    `chunk_text` as code."""
+    `chunk_markdown`, rst -> `chunk_rst`, .txt -> `chunk_text` as docs, a language with an
+    outline (TypeScript, Go, Rust, ... when the "outline" extra is installed) ->
+    `chunk_outlined`, anything else -> `chunk_text` as code. Never raises for an outline
+    problem: it falls back to windows."""
     ext = PurePosixPath(path).suffix.lower()
     if ext in PYTHON_EXTS:
         return chunk_python(path, source)
@@ -656,6 +803,13 @@ def chunk_file(path: str, source: str) -> list[Chunk]:
         return chunk_rst(path, source)
     if ext in PLAIN_DOC_EXTS:
         return chunk_text(path, source, kind="doc")
+    if grammar_for(path) not in (None, "python"):
+        try:
+            symbols = outline(path, source).symbols
+            if symbols:
+                return chunk_outlined(path, source, symbols)
+        except Exception:
+            log.debug("outline chunking failed for %s; using windows", path, exc_info=True)
     return chunk_text(path, source)
 
 

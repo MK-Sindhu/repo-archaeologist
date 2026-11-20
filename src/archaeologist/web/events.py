@@ -95,4 +95,5 @@ def answer_payload(answer: Answer, draft: Any, model: str) -> dict[str, Any]:
         "usage": dict(answer.usage),
         "latency_s": answer.latency_s,
         "model": model,
+        "mode": getattr(answer, "mode", None) or "why",
     }

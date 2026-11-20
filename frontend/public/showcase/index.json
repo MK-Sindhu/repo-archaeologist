@@ -1,0 +1,15 @@
+{
+  "recordings": [
+    {
+      "slug": "markupsafe-striptags",
+      "repo": {
+        "slug": "pallets/markupsafe",
+        "web_url": "https://github.com/pallets/markupsafe",
+        "language": "Python",
+        "commits": 869
+      },
+      "question": "Why does Markup.striptags collect the text between tags into a list in a single pass, instead of removing tags from the string one at a time?",
+      "recorded_at": "2026-11-20T21:23:21+00:00"
+    }
+  ]
+}

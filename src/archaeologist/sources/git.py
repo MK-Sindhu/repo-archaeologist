@@ -448,13 +448,16 @@ class GitRepo:
         Python files: the definition is located with `ast` at HEAD, traced with `git log -L`,
         and each candidate commit is kept only if the symbol's source actually changed in it;
         the walk stops where the symbol was introduced (following a rename when a vanished
-        symbol of the same kind has near-identical source). Other files, or Python the parser
-        rejects: `git log -L :<name>:<path>` with git's funcname drivers. If the symbol cannot
-        be located at all, falls back to the plain history of `path` (bounded by `timeout`).
+        symbol of the same kind has near-identical source). Languages with an outline
+        (TypeScript, Go, Rust, ... see index/outline.py): the definition's line range at HEAD,
+        traced with `git log -L <a>,<b>`. Other files, or sources neither can parse:
+        `git log -L :<name>:<path>` with git's funcname drivers. If the symbol cannot be
+        located at all, falls back to the plain history of `path` (bounded by `timeout`).
 
-        `near=(start, end)`: the HEAD lines the caller means. When a Python name is defined
-        more than once (property getter and setter, `@overload` stubs, `_` singledispatch
-        implementations), the definition overlapping those lines is traced, not the first.
+        `near=(start, end)`: the HEAD lines the caller means. When a name is defined more than
+        once (property getter and setter, `@overload` stubs, `_` singledispatch
+        implementations, TypeScript overloads), the definition overlapping those lines is
+        traced, not the first.
         """
         rel = self._rel(path)
         name = re.sub(r"\(.*\)\Z", "", symbol.strip())
@@ -474,6 +477,13 @@ class GitRepo:
                     return list(self._log(max_count, [rel], timeout=self.timeout))
                 kept = self._python_history(cands, rel, qualname, max_count)
                 return self._hydrate(kept, max_diff_chars)
+        if text is not None and not rel.endswith(_PYTHON_SUFFIXES):
+            span = _outline_span(rel, text, name, near)
+            if span is not None:
+                cands = self._log_range(f"{span[0]},{span[1]}:{rel}", max_count)
+                if cands is None:  # git failed on a valid range (e.g. timeout)
+                    return list(self._log(max_count, [rel], timeout=self.timeout))
+                return self._hydrate(cands, max_diff_chars)
         regex = _funcname_regex(name)
         if text is not None and regex:
             cands = self._log_range(f":{regex}:{rel}", max_count)
@@ -1038,6 +1048,38 @@ def _python_symbols(text: str) -> dict[str, _Symbol] | None:
 
     visit(tree.body, "", False)
     return symbols
+
+
+def _outline_span(
+    path: str, text: str, symbol: str, near: tuple[int, int] | None
+) -> tuple[int, int] | None:
+    """HEAD line range of `symbol` in a non-Python file, from its outline (None when the
+    language has no outline or the symbol is not found). Qualified names match exactly, then
+    without leading components ("pkg.Client.send" -> "Client.send"), then by last component;
+    among several definitions of the same name, the one overlapping `near` wins."""
+    from ..index.outline import outline  # lazy: the index package is heavy and optional here
+
+    symbols = outline(path, text).symbols
+    if not symbols:
+        return None
+    parts = [p for p in re.split(r"\.|::", symbol) if p]
+    if not parts:
+        return None
+    matches: list = []
+    for i in range(len(parts)):
+        want = ".".join(parts[i:])
+        matches = [s for s in symbols if s.qualified.replace("::", ".") == want]
+        if matches:
+            break
+    if not matches:
+        matches = [s for s in symbols if s.name == parts[-1]]
+    if not matches:
+        return None
+    best = matches[0]
+    if near is not None and len(matches) > 1:
+        lo, hi = near[0], max(near)
+        best = max(matches, key=lambda s: min(hi, s.end) - max(lo, s.start))
+    return best.start, best.end
 
 
 def _resolve_symbol(symbols: dict[str, _Symbol], symbol: str) -> str | None:

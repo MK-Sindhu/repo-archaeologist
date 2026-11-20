@@ -43,6 +43,13 @@ KEY_HINT = (
     "(free key: https://aistudio.google.com/apikey)."
 )
 RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+# Free-tier daily quotas are per model, so when one model's day is used up the next one in
+# this list takes over (each has its own quota). ARCH_GEMINI_FALLBACKS overrides it; an
+# empty value turns fallbacks off.
+DEFAULT_FALLBACKS = ("gemini-3-flash-preview", "gemini-2.5-flash", "gemini-3.5-flash-lite",
+                     "gemini-3.1-flash-lite")
+_exhausted: dict[str, float] = {}  # model -> unix time its daily quota resets
+_exhausted_lock = threading.Lock()
 REFUSAL_FINISH = {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "LANGUAGE"}
 MAX_WAIT_S = 65.0
 
@@ -77,11 +84,17 @@ class GeminiLLM:
         transport: httpx.BaseTransport | None = None,
         sleep: Callable[[float], None] = time.sleep,
         max_retries: int = 6,
+        fallbacks: list[str] | None = None,
         concurrency: int | None = None,
         rpm: int | None = None,
         timeout_s: float = 180.0,
     ):
         self.config = config or gemini_config()
+        if fallbacks is None:
+            raw = os.getenv("ARCH_GEMINI_FALLBACKS")
+            fallbacks = list(DEFAULT_FALLBACKS) if raw is None else [
+                m.strip() for m in raw.split(",") if m.strip()]
+        self.fallbacks = fallbacks
         self._api_key = api_key if api_key is not None else gemini_api_key()
         self._http = httpx.Client(base_url=BASE_URL, transport=transport, timeout=timeout_s)
         self._sleep = sleep
@@ -142,17 +155,37 @@ class GeminiLLM:
     def _generate(self, system, prompt, effort, max_tokens, role, gen_extra) -> tuple[str, str]:
         if not self._api_key:
             raise LLMAuthError(KEY_HINT)
-        model = self._model(role)
-        gen: dict[str, Any] = {"maxOutputTokens": max_tokens or self.config.max_tokens, **gen_extra}
-        if _supports_thinking_level(model) and model not in self._no_thinking:
-            gen["thinkingConfig"] = {"thinkingLevel": _thinking_level(effort)}
-        body = {
-            "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": gen,
-        }
-        data = self._post(model, body)
-        return self._read(data)
+        primary = self._model(role)
+        candidates = [primary, *(m for m in self.fallbacks if m != primary)]
+        spent: list[str] = []
+        for model in candidates:
+            if _is_exhausted(model):
+                spent.append(model)
+                continue
+            gen: dict[str, Any] = {"maxOutputTokens": max_tokens or self.config.max_tokens, **gen_extra}
+            if _supports_thinking_level(model) and model not in self._no_thinking:
+                gen["thinkingConfig"] = {"thinkingLevel": _thinking_level(effort)}
+            body = {
+                "systemInstruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": gen,
+            }
+            try:
+                data = self._post(model, body)
+            except DailyQuotaExceeded as exc:
+                _mark_exhausted(model)
+                spent.append(model)
+                nxt = next((m for m in candidates if m not in spent and not _is_exhausted(m)), None)
+                if nxt:
+                    log.warning("Gemini: the free daily limit for %s is used up (%s/day); "
+                                "using %s until it resets", model, exc.limit, nxt)
+                continue
+            return self._read(data)
+        raise LLMError(
+            "Gemini's free daily limit is used up for every configured model ("
+            + ", ".join(spent) + f"). It resets at midnight Pacific time ({_reset_note()}); "
+            "or enable billing on the Gemini API key."
+        )
 
     def _post(self, model: str, body: dict[str, Any]) -> dict[str, Any]:
         url = f"/models/{model}:generateContent"
@@ -186,11 +219,7 @@ class GeminiLLM:
             if resp.status_code == 429:
                 daily = _daily_quota(err)
                 if daily is not None:
-                    raise LLMError(
-                        f"Gemini free-tier daily quota for {model} is used up (limit {daily}/day). "
-                        "It resets daily; meanwhile set ARCH_MODEL / ARCH_GRADER_MODEL to another "
-                        "model, or enable billing."
-                    )
+                    raise DailyQuotaExceeded(model, daily)
             if resp.status_code in RETRY_STATUS and attempt < self.max_retries:
                 self._wait(attempt, _retry_delay(err), f"HTTP {resp.status_code} from {model}")
                 attempt += 1
@@ -242,6 +271,44 @@ class GeminiLLM:
 
 
 # -- helpers --------------------------------------------------------------------------
+
+
+class DailyQuotaExceeded(LLMError):
+    """A model's free daily quota is used up (retrying today won't help)."""
+
+    def __init__(self, model: str, limit: str):
+        super().__init__(f"Gemini free-tier daily quota for {model} is used up (limit {limit}/day).")
+        self.model, self.limit = model, limit
+
+
+def _next_reset(now: float | None = None) -> float:
+    """Unix time of the next midnight in America/Los_Angeles (when Gemini quotas reset)."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("America/Los_Angeles")
+    local = datetime.fromtimestamp(now if now is not None else time.time(), tz)
+    midnight = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight.timestamp()
+
+
+def _reset_note() -> str:
+    hours = max(0.0, (_next_reset() - time.time()) / 3600)
+    return f"in about {hours:.0f} h" if hours >= 1 else "within the hour"
+
+
+def _mark_exhausted(model: str) -> None:
+    with _exhausted_lock:
+        _exhausted[model] = _next_reset()
+
+
+def _is_exhausted(model: str) -> bool:
+    with _exhausted_lock:
+        until = _exhausted.get(model)
+        if until is not None and time.time() >= until:
+            del _exhausted[model]
+            return False
+        return until is not None
 
 
 def _supports_thinking_level(model: str) -> bool:

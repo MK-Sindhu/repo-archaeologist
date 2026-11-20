@@ -95,6 +95,7 @@ request cap per model. The published benchmark numbers use Claude.
 | `ARCH_PROVIDER` | from `ARCH_MODEL`, else whichever key is set (Claude first) | `anthropic` or `gemini` |
 | `ARCH_MODEL` / `ARCH_GRADER_MODEL` | `claude-opus-5-5` (Gemini: `gemini-3.5-flash` / `-flash-lite`) | model for every step, or for relevance grading only |
 | `ARCH_GEMINI_CONCURRENCY` / `ARCH_GEMINI_RPM` | `2` / off | Gemini: max in-flight calls / requests-per-minute pacing |
+| `ARCH_GEMINI_FALLBACKS` | four free models | Gemini: models to switch to when one's free daily limit is used up |
 | `ARCH_USE_FALLBACKS` | `1` | server-side refusal fallback beta; set `0` if your account rejects it |
 | `GITHUB_TOKEN` / `GH_TOKEN` | `gh auth token` | GitHub token |
 | `ARCH_EMBEDDER` | FastEmbed if installed | `none` gives BM25-only search |

@@ -165,6 +165,14 @@ class RepoToolbox:
             )
         return self._commit_evidence(commits[:k], "history")
 
+    def commit_count(self) -> int | None:
+        """Commits in the index (its history scan is capped, so this is exact for small
+        histories, which is what callers use it for). None if the index cannot tell."""
+        try:
+            return self.index.count("commit")
+        except _INDEX_ERRORS:
+            return None
+
     def fetch(self, ref: str) -> Evidence | None:
         """Resolve a canonical ref to Evidence (see contracts.Toolbox.fetch). Malformed,
         unknown or unreachable refs give None."""

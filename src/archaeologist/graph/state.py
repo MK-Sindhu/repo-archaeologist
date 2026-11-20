@@ -83,6 +83,8 @@ class AgentState(TypedDict, total=False):
     started_at: float  # wall-clock start, set by analyze
     usage_start: dict[str, int]  # llm.usage_snapshot() before the first LLM call
     analysis: Analysis
+    mode: str  # "why" (dig through history) | "explain" (explain the code as it is now)
+    history_commits: int | None  # commits in the index when few (<= THIN_HISTORY_COMMITS)
     queries: list[SourceQuery]  # the next retrieve fan-out (analyze / verify retry)
     searched: Annotated[list[str], add_unique]  # "source\x1fquery" keys already run
     evidence: Annotated[dict[str, Evidence], merge_evidence]  # everything retrieved

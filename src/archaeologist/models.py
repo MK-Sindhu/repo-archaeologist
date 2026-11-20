@@ -77,6 +77,9 @@ class Answer(BaseModel):
     trace: list[str] = Field(default_factory=list)  # human-readable step log
     usage: dict[str, int] = Field(default_factory=dict)
     system: str = "agent"  # which system produced it (agent / baseline name / ablation)
+    # "why": dug through history; "explain": explained the code as it is now (what/where/how
+    # questions, and repositories with too little history to dig through)
+    mode: str = "why"
     latency_s: float | None = None
 
 

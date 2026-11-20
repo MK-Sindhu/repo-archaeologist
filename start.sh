@@ -30,7 +30,7 @@ command -v uv >/dev/null || die "uv is not installed. Install it with:
   curl -LsSf https://astral.sh/uv/install.sh | sh"
 
 info "Checking Python dependencies..."
-uv sync --quiet --project "$ROOT" --extra embed
+uv sync --quiet --project "$ROOT" --extra embed --extra outline
 
 if [[ ! -f "$ROOT/.env" ]]; then
   cp "$ROOT/.env.example" "$ROOT/.env"
