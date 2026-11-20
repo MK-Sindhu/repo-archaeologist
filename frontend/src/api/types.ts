@@ -2,8 +2,20 @@
  * Web API contract between the FastAPI backend (src/archaeologist/web/) and this frontend.
  * The backend implements exactly these shapes; change both sides together.
  *
- * Base path: /api. JSON everywhere. Errors: HTTP 4xx/5xx with body {detail: string}
+ * Base path: /api, on the same origin by default. When the website is hosted apart from the
+ * API (e.g. website on Vercel, API in a container), the build sets VITE_API_URL to the
+ * API's origin (e.g. "https://archaeologist-api.onrender.com"); the API allows
+ * cross-origin requests (CORS) from any origin unless ARCH_CORS_ORIGINS restricts it.
+ * JSON everywhere. Errors: HTTP 4xx/5xx with body {detail: string}
  * (a sentence meant for the user, e.g. "pallets/clik was not found on GitHub").
+ *
+ * Access code: when the server sets ARCH_ACCESS_CODE, Status.access_required is true and
+ * every other /api endpoint needs the code, sent as the `X-Access-Code` header or, for
+ * EventSource streams (which cannot set headers), the `access` query parameter. A missing
+ * or wrong code gives 401 {detail}. GET /api/status and GET /api/health never need it.
+ * Rate limit: POST /api/runs may answer 429 {detail} ("Too many questions ... try again in
+ * N minutes") when the server limits questions per client.
+ * GET /api/health -> {ok: true} (for platform health checks).
  *
  * Streams (Server-Sent Events): GET /api/jobs/{id}/events and GET /api/runs/{id}/events.
  * Each message is `id: <index>\ndata: <JSON event>\n\n`. A stream first replays every event
@@ -26,6 +38,7 @@ export interface Status {
   llm_hint: string | null; // when !llm_ready: how to fix it, one or two sentences
   github: "token" | "gh" | "none"; // GITHUB_TOKEN set / `gh` login / unauthenticated (60 req/h)
   allow_local_paths: boolean; // whether POST /api/repos accepts local filesystem paths
+  access_required: boolean; // the API needs an access code (see the header comment)
   version: string;
 }
 

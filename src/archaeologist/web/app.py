@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
+import hmac
+import math
 import os
+import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version
@@ -14,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -79,11 +84,27 @@ def create_app(
     db_path: Path | None = None,
     max_runs: int | None = None,
     toolbox_opener: Callable[..., Any] | None = None,
+    access_code: str | None = None,
+    cors_origins: list[str] | None = None,
+    runs_per_hour: int | None = None,
 ) -> FastAPI:
     """Build the app. `llm_factory` overrides the configured backend (tests pass a FakeLLM
-    factory); local paths are allowed unless ARCH_WEB_ALLOW_LOCAL=0."""
+    factory). Other settings default to the environment:
+
+    - ARCH_WEB_ALLOW_LOCAL=0      only GitHub repositories (no local paths); default allowed
+    - ARCH_ACCESS_CODE=<code>     every /api endpoint but status/health needs this code
+    - ARCH_CORS_ORIGINS=a,b|*     allow the website on other origins (default: same origin)
+    - ARCH_RUNS_PER_HOUR=<n>      questions per client address per hour (default: no limit)
+    """
     if allow_local_paths is None:
         allow_local_paths = os.getenv("ARCH_WEB_ALLOW_LOCAL", "1") not in ("0", "false")
+    if access_code is None:
+        access_code = os.getenv("ARCH_ACCESS_CODE", "").strip()
+    if cors_origins is None:
+        cors_origins = [o.strip() for o in os.getenv("ARCH_CORS_ORIGINS", "").split(",") if o.strip()]
+    if runs_per_hour is None:
+        runs_per_hour = int(os.getenv("ARCH_RUNS_PER_HOUR", "0") or 0)
+    limiter = _RateLimiter(runs_per_hour)
     static = static_dir or STATIC_DIR
     injected = llm_factory is not None
     store = Store(db_path or arch_home() / "web.sqlite")
@@ -116,6 +137,27 @@ def create_app(
     app.state.engine = engine
     app.state.store = store
 
+    @app.middleware("http")
+    async def require_access_code(request: Request, call_next):
+        path = request.url.path
+        if (access_code and path.startswith("/api/") and path not in OPEN_PATHS
+                and request.method != "OPTIONS"):
+            given = request.headers.get("x-access-code") or request.query_params.get("access") or ""
+            if not hmac.compare_digest(given.encode(), access_code.encode()):
+                detail = ("That access code is not right." if given
+                          else "This site is private. Enter the access code to continue.")
+                return JSONResponse({"detail": detail}, status_code=401)
+        return await call_next(request)
+
+    if cors_origins:  # added last so it wraps everything, 401s included
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "X-Access-Code", "Last-Event-ID"],
+            max_age=600,
+        )
+
     def ready() -> tuple[bool, str | None]:
         if injected:
             return True, None
@@ -143,8 +185,13 @@ def create_app(
             "llm_hint": hint,
             "github": _github_state(),
             "allow_local_paths": allow_local_paths,
+            "access_required": bool(access_code),
             "version": _version(),
         }
+
+    @app.get("/api/health")
+    def health() -> dict[str, bool]:
+        return {"ok": True}
 
     # -- repos --------------------------------------------------------------------------
     @app.get("/api/repos")
@@ -197,7 +244,7 @@ def create_app(
 
     # -- runs ---------------------------------------------------------------------------
     @app.post("/api/runs", status_code=202)
-    def create_run(body: CreateRunBody) -> dict[str, Any]:
+    def create_run(body: CreateRunBody, request: Request) -> dict[str, Any]:
         question = body.question.strip()
         if not question:
             raise HTTPException(400, "Type a question first.")
@@ -206,6 +253,11 @@ def create_app(
         ok, hint = ready()
         if not ok:
             raise HTTPException(503, hint)
+        wait_s = limiter.hit(_client_address(request))
+        if wait_s:
+            minutes = max(1, math.ceil(wait_s / 60))
+            raise HTTPException(429, f"Too many questions from your address. Try again in "
+                                     f"{minutes} minute{'s' if minutes != 1 else ''}.")
         options = {"follow_links": body.follow_links, "verify": body.verify,
                    "offline": body.offline}
         run = engine.start_run(body.repo_id, question, options)
@@ -251,6 +303,41 @@ def create_app(
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
     return app
+
+
+OPEN_PATHS = {"/api/status", "/api/health"}
+
+
+class _RateLimiter:
+    """At most `per_hour` hits per key in any rolling hour (0 = unlimited)."""
+
+    def __init__(self, per_hour: int):
+        self.per_hour = max(0, per_hour)
+        self._hits: dict[str, deque[float]] = {}
+        self._lock = threading.Lock()
+
+    def hit(self, key: str) -> float:
+        """Record a hit; returns 0 if allowed, else seconds until the next one is."""
+        if not self.per_hour:
+            return 0.0
+        now = time.monotonic()
+        with self._lock:
+            hits = self._hits.setdefault(key, deque())
+            while hits and now - hits[0] >= 3600:
+                hits.popleft()
+            if len(hits) >= self.per_hour:
+                return 3600 - (now - hits[0])
+            hits.append(now)
+            return 0.0
+
+
+def _client_address(request: Request) -> str:
+    """The caller's address. Behind a hosting proxy the last X-Forwarded-For entry is the one
+    the proxy added (earlier entries come from the client and can be forged)."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded.strip():
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
 
 
 def _job_pending(engine: Engine, repo_id: str) -> bool:

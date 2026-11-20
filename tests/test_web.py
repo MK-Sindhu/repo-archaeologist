@@ -318,3 +318,76 @@ def test_website_not_built_page(tmp_path):
 def test_cli_has_serve_command():
     result = CliRunner().invoke(cli.app, ["serve", "--help"])
     assert result.exit_code == 0 and "--port" in result.output
+
+
+# -- public hosting: access code, CORS, rate limit, size limit, health -------------------------
+
+
+def test_access_code_guards_the_api(toy_repo):
+    with make_client(FakeLLM(), access_code="s3cret") as client:
+        status = client.get("/api/status").json()
+        assert status["access_required"] is True
+        assert client.get("/api/health").json() == {"ok": True}
+        resp = client.get("/api/repos")
+        assert resp.status_code == 401 and "private" in resp.json()["detail"]
+        resp = client.get("/api/repos", headers={"X-Access-Code": "wrong"})
+        assert resp.status_code == 401 and "not right" in resp.json()["detail"]
+        ok = {"X-Access-Code": "s3cret"}
+        assert client.get("/api/repos", headers=ok).json() == []
+        job = client.post("/api/repos", json={"source": str(toy_repo)}, headers=ok).json()["job"]
+        url = f"/api/jobs/{job['id']}/events"
+        assert client.get(url).status_code == 401  # streams need the code too...
+        assert sse(client, f"{url}?access=s3cret")[-1]["status"] == "done"  # ...as a query param
+
+
+def test_no_access_code_by_default():
+    with make_client(FakeLLM()) as client:
+        assert client.get("/api/status").json()["access_required"] is False
+        assert client.get("/api/repos").status_code == 200
+
+
+def test_cors_is_off_by_default_and_on_when_configured():
+    origin = {"Origin": "https://archaeologist.vercel.app"}
+    with make_client(FakeLLM()) as client:
+        assert "access-control-allow-origin" not in client.get("/api/status", headers=origin).headers
+    with make_client(FakeLLM(), cors_origins=["*"], access_code="c") as client:
+        pre = client.options("/api/runs", headers={
+            **origin, "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-access-code",
+        })
+        assert pre.status_code == 200 and pre.headers["access-control-allow-origin"] == "*"
+        denied = client.get("/api/repos", headers=origin)  # the browser must be able to read 401s
+        assert denied.status_code == 401 and denied.headers["access-control-allow-origin"] == "*"
+
+
+def test_questions_are_rate_limited_per_address(toy_repo_shas):
+    path, shas = toy_repo_shas
+    with make_client(agent_llm(shas[1], {}), runs_per_hour=1) as client:
+        repo_id, _ = open_repo(client, str(path))
+        body = {"repo_id": repo_id, "question": QUESTION, "offline": True}
+        first = client.post("/api/runs", json=body, headers={"X-Forwarded-For": "1.1.1.1, 9.9.9.9"})
+        assert first.status_code == 202
+        sse(client, f"/api/runs/{first.json()['id']}/events")  # let it finish
+        # same proxy-added address (last entry), forged first entry: still limited
+        again = client.post("/api/runs", json=body, headers={"X-Forwarded-For": "2.2.2.2, 9.9.9.9"})
+        assert again.status_code == 429 and "60 minutes" in again.json()["detail"]
+        other = client.post("/api/runs", json=body, headers={"X-Forwarded-For": "8.8.8.8"})
+        assert other.status_code == 202
+        sse(client, f"/api/runs/{other.json()['id']}/events")
+
+
+def test_large_github_repos_are_refused(toy_repo, tmp_path, monkeypatch):
+    from archaeologist.web import sources
+
+    remotes = tmp_path / "remotes"
+    _bare_remote(remotes, toy_repo, "big/repo")
+    monkeypatch.setenv("ARCH_CLONE_BASE", remotes.as_uri())
+    monkeypatch.setenv("ARCH_MAX_REPO_MB", "100")
+    monkeypatch.setattr(sources, "github_repo_size_mb", lambda slug: 4321.0)
+    with make_client(FakeLLM()) as client:
+        _, events = open_repo(client, "big/repo")
+        assert events[-1]["status"] == "error" and "too large" in events[-1]["error"]
+        assert "4,321 MB" in events[-1]["error"] and "100 MB" in events[-1]["error"]
+    monkeypatch.setattr(sources, "github_repo_size_mb", lambda slug: 3.0)
+    with make_client(FakeLLM()) as client:
+        assert open_repo(client, "big/repo")[1][-1]["status"] == "done"

@@ -1,0 +1,37 @@
+# Render Blueprint: the Repo Archaeologist API (it also serves the website).
+# Dashboard -> New -> Blueprint -> pick this repository. Render asks for the values marked
+# `sync: false` and generates the access code. See DEPLOY.md.
+services:
+  - type: web
+    name: repo-archaeologist-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # LLM keys: set at least one (Gemini has a free tier: https://aistudio.google.com/apikey)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # GitHub token (read-only, public repositories): 5,000 requests/hour instead of 60
+      - key: GITHUB_TOKEN
+        sync: false
+      # Visitors must enter this code; find it under Environment after the first deploy
+      - key: ARCH_ACCESS_CODE
+        generateValue: true
+      # The free plan has 512 MB of memory: keyword search only. Remove on larger plans to
+      # turn on embedding (dense) search.
+      - key: ARCH_EMBEDDER
+        value: none
+      - key: ARCH_MAX_REPO_MB
+        value: "300"
+      - key: ARCH_RUNS_PER_HOUR
+        value: "20"
+    # Paid plans only: keep cloned repositories, indexes and question history across
+    # restarts and deploys.
+    # disk:
+    #   name: data
+    #   mountPath: /data
+    #   sizeGB: 5

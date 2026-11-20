@@ -124,6 +124,7 @@ def fetch(source: Source, progress: Progress, warn: Callable[[str], None]) -> No
             warn(f"Could not update {source.slug}; using the existing clone. "
                  f"({out.stderr.strip().splitlines()[-1] if out.stderr.strip() else 'git pull failed'})")
         return
+    check_size(source.slug or "")
     partial = source.path.with_name(source.path.name + ".partial")
     shutil.rmtree(partial, ignore_errors=True)
     partial.parent.mkdir(parents=True, exist_ok=True)
@@ -155,3 +156,46 @@ def fetch(source: Source, progress: Progress, warn: Callable[[str], None]) -> No
             raise SourceError(f"{source.slug} was not found on GitHub (or it is private).")
         raise SourceError(f"Could not clone {source.slug}: {tail[-1] if tail else 'git clone failed'}")
     partial.rename(source.path)
+
+
+def max_repo_mb() -> int:
+    """ARCH_MAX_REPO_MB: largest GitHub repository this server clones (0 = no limit)."""
+    try:
+        return max(0, int(os.getenv("ARCH_MAX_REPO_MB", "0") or 0))
+    except ValueError:
+        return 0
+
+
+def github_repo_size_mb(slug: str) -> float | None:
+    """Size GitHub reports for the repository in MB; None if unknown. Raises SourceError
+    when GitHub says it does not exist."""
+    import httpx
+
+    from ..sources.github import resolve_token
+
+    headers = {"Accept": "application/vnd.github+json"}
+    token = resolve_token(None)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        resp = httpx.get(f"https://api.github.com/repos/{slug}", headers=headers, timeout=15)
+    except httpx.HTTPError:
+        return None
+    if resp.status_code == 404:
+        raise SourceError(f"{slug} was not found on GitHub (or it is private).")
+    if resp.status_code != 200:
+        return None
+    size_kb = resp.json().get("size")
+    return size_kb / 1024 if isinstance(size_kb, (int, float)) else None
+
+
+def check_size(slug: str) -> None:
+    """Refuse to clone repositories above ARCH_MAX_REPO_MB (when set)."""
+    limit = max_repo_mb()
+    if not limit or not slug:
+        return
+    size = github_repo_size_mb(slug)
+    if size is not None and size > limit:
+        raise SourceError(
+            f"{slug} is too large for this server ({size:,.0f} MB; the limit is {limit:,} MB)."
+        )
