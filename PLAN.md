@@ -124,9 +124,8 @@ analyze ──► (Send ×N) retrieve[source] ──► trace_history ──► 
   issues), `citation_validity` (cited ids ⊆ evidence ids), aggregate means, cost.
 - `eval/run.py`: `run_eval(items, systems: dict[str, Callable[[str], Answer]], llm_judge, out_dir)`
   → per-item JSONL + `summary.json` + `report.md` (markdown table; ablation rows).
-- **Leakage at run time:** for each item, toolbox must hide PRs/issues created after the gold PR's
-  merge? No — the gold PR *is* the answer we want found. What we hide is the *question's* source
-  text; the systems must find the PR themselves. (DeepWiki comparison: phase 2.)
+- **Leakage at run time:** systems see only `item.question` — never the gold ids, PR title or
+  reference rationale. The gold PR stays findable (finding it is the task). (DeepWiki: phase 2.)
 
 ### F. Integration (after A–E)
 - `toolbox.py`: `RepoToolbox(repo: GitRepo, index: HybridIndex, github: GitHubClient | None)`

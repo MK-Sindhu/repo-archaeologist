@@ -1,6 +1,10 @@
 """Claude wrapper implementing contracts.LLM via the official Anthropic SDK.
 
-- Structured calls use `client.beta.messages.parse(output_format=PydanticModel)`.
+- Structured calls send the Pydantic model's JSON schema as `output_config.format` (the same
+  schema `client.beta.messages.parse(output_format=...)` would send) through
+  `client.beta.messages.create`, and validate the reply themselves. `parse` validates inside
+  the SDK before the stop reason can be checked, so a reply cut off at max_tokens or a
+  refusal would surface as a raw pydantic ValidationError with its tokens uncounted.
 - Thinking is always adaptive on Opus 5.5 (we omit `thinking`); depth is set per role
   with `output_config.effort`.
 - Server-side refusal fallback (beta) is on by default: betas=["server-side-fallback-2026-07-01"],
@@ -9,6 +13,7 @@
 
 from __future__ import annotations
 
+import functools
 import threading
 from typing import Any, TypeVar
 
@@ -20,6 +25,12 @@ from .config import LLMConfig
 T = TypeVar("T", bound=BaseModel)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+
+@functools.lru_cache(maxsize=64)
+def json_output_format(schema: type[BaseModel]) -> dict[str, Any]:
+    """`output_config.format` asking for replies that match `schema` (strict JSON schema)."""
+    return {"type": "json_schema", "schema": anthropic.transform_schema(schema)}
 
 
 class LLMError(RuntimeError):
@@ -48,14 +59,19 @@ class ClaudeLLM:
         max_tokens: int | None = None,
         role: str = "default",
     ) -> T:
-        resp = self.client.beta.messages.parse(
-            **self._kwargs(system, prompt, effort, max_tokens, role), output_format=schema
-        )
-        self._check(resp)
-        parsed = getattr(resp, "parsed_output", None)
-        if parsed is None:
-            raise LLMError(f"no parsed output (stop_reason={resp.stop_reason})")
-        return parsed
+        kw = self._kwargs(system, prompt, effort, max_tokens, role)
+        kw["output_config"] = {**kw["output_config"], "format": json_output_format(schema)}
+        resp = self.client.beta.messages.create(**kw)
+        self._check(resp)  # usage first; refusals and max_tokens stops raise before validation
+        text = _text_of(resp)
+        if not text.strip():
+            raise LLMError(f"no structured output (stop_reason={resp.stop_reason})")
+        try:
+            return schema.model_validate_json(text)
+        except ValueError as exc:  # pydantic.ValidationError is a ValueError
+            raise LLMError(
+                f"reply does not match {schema.__name__} (stop_reason={resp.stop_reason}): {exc}"
+            ) from exc
 
     def text(
         self,
@@ -68,7 +84,7 @@ class ClaudeLLM:
     ) -> str:
         resp = self.client.beta.messages.create(**self._kwargs(system, prompt, effort, max_tokens, role))
         self._check(resp)
-        return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        return _text_of(resp)
 
     def usage_snapshot(self) -> dict[str, int]:
         with self._lock:
@@ -101,3 +117,7 @@ class ClaudeLLM:
             raise LLMRefusal(f"model declined: {getattr(details, 'category', None)}")
         if resp.stop_reason == "max_tokens":
             raise LLMError("hit max_tokens; raise LLMConfig.max_tokens")
+
+
+def _text_of(resp: Any) -> str:
+    return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")

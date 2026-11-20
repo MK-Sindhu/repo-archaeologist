@@ -67,6 +67,11 @@ class Answer(BaseModel):
     answer: str  # markdown; cites evidence inline as [<evidence id>]
     citations: list[str] = Field(default_factory=list)  # evidence ids actually cited
     evidence: list[Evidence] = Field(default_factory=list)  # everything the answer may cite
+    # ids the model cited that matched no evidence (removed from `citations` and the text);
+    # kept so citation validity can count them against the system
+    dropped_citations: list[str] = Field(default_factory=list)
+    # every evidence id the system retrieved, before any grading/filtering ([] = `evidence`)
+    retrieved_ids: list[str] = Field(default_factory=list)
     unsupported_claims: list[str] = Field(default_factory=list)
     hops: int = 0
     trace: list[str] = Field(default_factory=list)  # human-readable step log
