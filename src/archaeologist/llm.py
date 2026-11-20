@@ -41,6 +41,10 @@ class LLMRefusal(LLMError):
     pass
 
 
+class LLMAuthError(LLMError):
+    """Missing or rejected credentials; the message says how to fix it."""
+
+
 class ClaudeLLM:
     def __init__(self, config: LLMConfig | None = None, client: Any | None = None):
         self.config = config or LLMConfig()

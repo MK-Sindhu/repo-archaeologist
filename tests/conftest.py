@@ -139,4 +139,6 @@ def toy_repo_shas(tmp_path: Path) -> tuple[Path, list[str]]:
 def _isolated_arch_home(tmp_path, monkeypatch):
     monkeypatch.setenv("ARCH_HOME", str(tmp_path / "arch_home"))
     monkeypatch.setenv("ARCH_NO_DOTENV", "1")  # never load the developer's real .env (API keys)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    for var in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_KEY",
+                "ARCH_PROVIDER", "ARCH_MODEL", "ARCH_GRADER_MODEL"):
+        monkeypatch.delenv(var, raising=False)

@@ -26,15 +26,16 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.table import Table
 
-from .config import GraphConfig, LLMConfig, load_env_file
+from .config import GraphConfig, LLMConfig, llm_provider, load_env_file
 from .contracts import LLM
 from .eval.baselines import PlainRAGBaseline, SingleCommitBaseline
 from .eval.mine import load_benchmark, mine_benchmark, read_jsonl
 from .eval.run import run_eval
+from .gemini import GeminiLLM, gemini_config
 from .graph.graph import ask as run_agent
 from .graph.graph import iter_steps
 from .index.store import EmbedderMismatchError
-from .llm import ClaudeLLM, LLMError
+from .llm import ClaudeLLM, LLMAuthError, LLMError
 from .models import Answer, BenchmarkItem
 from .sources.git import GitRepo
 from .sources.github import GitHubError
@@ -75,9 +76,19 @@ OfflineOpt = Annotated[
 
 
 def make_llm() -> LLM:
-    """The LLM used by ask / mine / eval (ClaudeLLM with LLMConfig defaults and env overrides).
-    Tests monkeypatch this to return a FakeLLM."""
-    return ClaudeLLM(LLMConfig())
+    """The LLM used by ask / mine / eval: ClaudeLLM or GeminiLLM per `llm_provider()`
+    (ARCH_PROVIDER, ARCH_MODEL's prefix, or whichever API key is set). Tests monkeypatch
+    this to return a FakeLLM."""
+    try:
+        provider = llm_provider()
+    except ValueError as exc:
+        _fail(str(exc), 2)
+    llm: LLM = GeminiLLM(gemini_config()) if provider == "gemini" else ClaudeLLM(LLMConfig())
+    cfg = _llm_config(llm)
+    if cfg is not None:
+        grader = f", grading with {cfg.grader_model}" if cfg.grader_model != cfg.model else ""
+        err.print(f"[dim]model: {cfg.model}{grader}[/]")
+    return llm
 
 
 def _llm_config(llm: LLM) -> LLMConfig | None:
@@ -90,8 +101,12 @@ class _AuthFailure(BaseException):
     rows) stops at the first authentication failure instead of failing every row."""
 
 
+def _auth_hint(exc: BaseException) -> str:
+    return str(exc) if isinstance(exc, LLMAuthError) else AUTH_HINT
+
+
 def _is_auth_error(exc: BaseException) -> bool:
-    if isinstance(exc, anthropic.AuthenticationError):
+    if isinstance(exc, (anthropic.AuthenticationError, LLMAuthError)):
         return True
     credentials_error = getattr(anthropic, "CredentialsError", None)
     if isinstance(credentials_error, type) and isinstance(exc, credentials_error):
@@ -110,19 +125,22 @@ def _llm_errors() -> Iterator[None]:
     """Turn Claude authentication and API failures into friendly messages."""
     try:
         yield
-    except _AuthFailure:
-        err.print(f"[bold red]{AUTH_HINT}[/]")
+    except _AuthFailure as exc:
+        err.print(f"[bold red]{escape(str(exc) or AUTH_HINT)}[/]")
         raise typer.Exit(2) from None
     except anthropic.APIError as exc:
         if _is_auth_error(exc):
             err.print(f"[bold red]{AUTH_HINT}[/]")
             raise typer.Exit(2) from None
         _fail(f"Claude API error: {exc}")
+    except LLMAuthError as exc:
+        err.print(f"[bold red]{escape(str(exc))}[/]")
+        raise typer.Exit(2) from None
     except LLMError as exc:
-        _fail(f"Claude call failed: {exc}")
+        _fail(f"LLM call failed: {exc}")
     except Exception as exc:
         if _is_auth_error(exc):
-            err.print(f"[bold red]{AUTH_HINT}[/]")
+            err.print(f"[bold red]{escape(_auth_hint(exc))}[/]")
             raise typer.Exit(2) from None
         raise
 
@@ -133,7 +151,7 @@ def _guard_auth(fn: Callable[[str], Answer]) -> Callable[[str], Answer]:
             return fn(question)
         except Exception as exc:
             if _is_auth_error(exc):
-                raise _AuthFailure(str(exc)) from exc
+                raise _AuthFailure(_auth_hint(exc)) from exc
             raise
 
     return run

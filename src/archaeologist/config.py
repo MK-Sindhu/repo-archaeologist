@@ -9,6 +9,32 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 DEFAULT_MODEL = "claude-opus-5-5"
+GEMINI_MODEL = "gemini-3.5-flash"
+GEMINI_GRADER_MODEL = "gemini-3.5-flash-lite"
+GEMINI_KEY_VARS = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_KEY")
+
+
+def gemini_api_key() -> str | None:
+    """The first non-empty Gemini key among GEMINI_KEY_VARS."""
+    return next((v for k in GEMINI_KEY_VARS if (v := os.getenv(k, "").strip())), None)
+
+
+def llm_provider() -> str:
+    """"anthropic" or "gemini": ARCH_PROVIDER if set, else implied by ARCH_MODEL's prefix,
+    else whichever key is present (Anthropic first), else "anthropic"."""
+    explicit = os.getenv("ARCH_PROVIDER", "").strip().lower()
+    if explicit in ("anthropic", "claude"):
+        return "anthropic"
+    if explicit == "gemini":
+        return "gemini"
+    if explicit:
+        raise ValueError(f"ARCH_PROVIDER must be 'anthropic' or 'gemini', not {explicit!r}")
+    model = os.getenv("ARCH_MODEL", "")
+    if model.startswith("gemini"):
+        return "gemini"
+    if model.startswith("claude") or os.getenv("ANTHROPIC_API_KEY"):
+        return "anthropic"
+    return "gemini" if gemini_api_key() else "anthropic"
 
 
 class LLMConfig(BaseModel):

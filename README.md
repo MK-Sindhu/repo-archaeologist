@@ -21,7 +21,7 @@ Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and git.
 
 ```bash
 uv sync --extra embed               # the embed extra adds FastEmbed for dense search (optional)
-cp .env.example .env                # then put ANTHROPIC_API_KEY (and optionally GITHUB_TOKEN) in .env
+cp .env.example .env                # then put ANTHROPIC_API_KEY or GEMINI_API_KEY in .env
 
 uv run arch index path/to/repo
 uv run arch ask path/to/repo "why does backoff() cap the delay at 30 seconds?"
@@ -59,10 +59,19 @@ and judgement, so start small with `--limit`.
 Set these in your shell or in a `.env` file (git-ignored), read from the current directory and
 the project checkout. Shell variables win over `.env`; `ARCH_NO_DOTENV=1` turns the file off.
 
+**Two LLM backends.** Claude (`claude-opus-5-5`, the default) or Gemini, which has a free tier
+([get a key](https://aistudio.google.com/apikey)). With only a Gemini key set, Gemini is used
+automatically: `gemini-3.5-flash` for every step, `gemini-3.5-flash-lite` for grading. On the free
+tier expect ~20–40 s per call (a question takes a few minutes), retries on 429/503, and a daily
+request cap per model. The published benchmark numbers use Claude.
+
 | variable | default | meaning |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | (none) | Claude API key |
-| `ARCH_MODEL` / `ARCH_GRADER_MODEL` | `claude-opus-5-5` | model for every step, or for relevance grading only |
+| `GEMINI_API_KEY` (or `GOOGLE_API_KEY` / `GOOGLE_GEMINI_KEY`) | (none) | Gemini API key |
+| `ARCH_PROVIDER` | from `ARCH_MODEL`, else whichever key is set (Claude first) | `anthropic` or `gemini` |
+| `ARCH_MODEL` / `ARCH_GRADER_MODEL` | `claude-opus-5-5` (Gemini: `gemini-3.5-flash` / `-flash-lite`) | model for every step, or for relevance grading only |
+| `ARCH_GEMINI_CONCURRENCY` / `ARCH_GEMINI_RPM` | `2` / off | Gemini: max in-flight calls / requests-per-minute pacing |
 | `ARCH_USE_FALLBACKS` | `1` | server-side refusal fallback beta; set `0` if your account rejects it |
 | `GITHUB_TOKEN` / `GH_TOKEN` | `gh auth token` | GitHub token |
 | `ARCH_EMBEDDER` | FastEmbed if installed | `none` gives BM25-only search |
