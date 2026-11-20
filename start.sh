@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Repo Archaeologist launcher: sets up, indexes a repo, and answers "why" questions about it.
+# Repo Archaeologist launcher.
 #
-#   ./start.sh                              # prompts for a repo, then for questions
-#   ./start.sh <repo>                       # index <repo>, then ask questions interactively
-#   ./start.sh <repo> "why ...?" [flags]    # answer one question (flags go to `arch ask`)
+#   ./start.sh                         # start the website and open it in your browser
+#   ./start.sh --port 9000 --no-open   # website on another port, without opening a browser
+#   ./start.sh ask <repo> ["why ...?"] [flags]   # terminal mode (one question, or interactive)
 #
-# <repo> is a local path, a GitHub "owner/name", or a GitHub URL. GitHub repos are cloned
-# (full history) into $ARCH_HOME/clones. Useful `arch ask` flags: --offline --no-hops
-# --no-verify --json. Keys live in .env (copied from .env.example on first run).
+# <repo> (terminal mode) is a local path, a GitHub "owner/name", or a GitHub URL; GitHub
+# repos are cloned with full history into $ARCH_HOME/clones. Keys live in .env, created
+# from .env.example on first run.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE="${ARCH_HOME:-$HOME/.cache/repo-archaeologist}"
+STATIC="$ROOT/src/archaeologist/web/static"
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 info() { printf '\033[2m%s\033[0m\n' "$*"; }
@@ -28,7 +29,7 @@ command -v git >/dev/null || die "git is not installed."
 command -v uv >/dev/null || die "uv is not installed. Install it with:
   curl -LsSf https://astral.sh/uv/install.sh | sh"
 
-info "Checking dependencies..."
+info "Checking Python dependencies..."
 uv sync --quiet --project "$ROOT" --extra embed
 
 if [[ ! -f "$ROOT/.env" ]]; then
@@ -43,19 +44,52 @@ fi
 
 # Which backend will run, without ever printing a key.
 provider="$(uv run --quiet --project "$ROOT" python -c '
-import os
-from archaeologist.config import gemini_api_key, llm_provider, load_env_file
+from archaeologist.backends import llm_ready
+from archaeologist.config import llm_provider, load_env_file
 load_env_file()
-p = llm_provider()
-ok = bool(os.getenv("ANTHROPIC_API_KEY")) if p == "anthropic" else bool(gemini_api_key())
-print(p if ok else "")
+print(llm_provider() if llm_ready()[0] else "")
 ')" || die "could not read settings (check ARCH_PROVIDER in .env)"
-[[ -n "$provider" ]] || die "no LLM API key found. Add one to $ROOT/.env:
+
+need_key() {
+  [[ -n "$provider" ]] || die "no LLM API key found. Add one to $ROOT/.env:
   GEMINI_API_KEY=...     free tier: https://aistudio.google.com/apikey
   ANTHROPIC_API_KEY=...  paid:      https://console.anthropic.com"
-info "LLM backend: $provider"
+}
 
-# -- repo -------------------------------------------------------------------------------
+# -- website (default) ------------------------------------------------------------------
+build_frontend() {
+  if ! command -v npm >/dev/null; then
+    [[ -f "$STATIC/index.html" ]] && return 0
+    info "npm is not installed, so the website can't be built (install Node.js from"
+    info "https://nodejs.org). The API still runs; terminal mode: ./start.sh ask <repo>"
+    return 0
+  fi
+  local fe="$ROOT/frontend"
+  if [[ ! -d "$fe/node_modules" || "$fe/package-lock.json" -nt "$fe/node_modules/.package-lock.json" ]]; then
+    info "Installing website dependencies..."
+    (cd "$fe" && npm install --no-audit --no-fund --loglevel=error)
+  fi
+  if [[ ! -f "$STATIC/index.html" ]] || [[ -n "$(find "$fe/src" "$fe/index.html" "$fe/package.json" \
+        "$fe/vite.config.ts" -newer "$STATIC/index.html" -print -quit 2>/dev/null)" ]]; then
+    info "Building the website..."
+    (cd "$fe" && npm run --silent build >/dev/null) || die "the website build failed; run: cd frontend && npm run build"
+  fi
+}
+
+if [[ "${1:-}" != "ask" ]]; then
+  if [[ -z "$provider" ]]; then
+    info "No LLM API key yet: the website will open, and asking questions needs a key in .env."
+  else
+    info "LLM backend: $provider"
+  fi
+  build_frontend
+  exec uv run --quiet --project "$ROOT" arch serve "$@"
+fi
+
+# -- terminal mode: ./start.sh ask <repo> ["question"] [flags] ---------------------------
+shift
+need_key
+info "LLM backend: $provider"
 repo="${1:-}"
 if [[ -z "$repo" ]]; then
   read -r -e -p "Repo (local path, owner/name or GitHub URL) [.]: " repo || exit 0
@@ -63,11 +97,11 @@ if [[ -z "$repo" ]]; then
 fi
 
 slug=""
-if [[ "$repo" =~ ^(https?://)?(www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+) ]]; then
+if [[ "$repo" =~ ^(https?://)?(www\.)?github\.com/([A-Za-z0-9][A-Za-z0-9-]*)/([A-Za-z0-9_.-]+) ]]; then
   slug="${BASH_REMATCH[3]}/${BASH_REMATCH[4]%.git}"
-elif [[ "$repo" =~ ^git@github\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]]; then
+elif [[ "$repo" =~ ^git@github\.com:([A-Za-z0-9][A-Za-z0-9-]*)/([A-Za-z0-9_.-]+)$ ]]; then
   slug="${BASH_REMATCH[1]}/${BASH_REMATCH[2]%.git}"
-elif [[ ! -e "$repo" && "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+elif [[ ! -e "$repo" && "$repo" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+$ ]]; then
   slug="$repo"
 fi
 
@@ -90,7 +124,6 @@ git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not a git
 bold "Indexing $repo (first run downloads a small embedding model)..."
 arch index "$repo"
 
-# -- ask --------------------------------------------------------------------------------
 if [[ $# -ge 2 ]]; then
   arch ask "$repo" "$2" --steps "${@:3}"
   exit $?

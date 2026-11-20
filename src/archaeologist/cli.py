@@ -26,16 +26,16 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.table import Table
 
-from .config import GraphConfig, LLMConfig, llm_provider, load_env_file
+from .backends import default_llm
+from .config import GraphConfig, LLMConfig, load_env_file
 from .contracts import LLM
 from .eval.baselines import PlainRAGBaseline, SingleCommitBaseline
 from .eval.mine import load_benchmark, mine_benchmark, read_jsonl
 from .eval.run import run_eval
-from .gemini import GeminiLLM, gemini_config
 from .graph.graph import ask as run_agent
 from .graph.graph import iter_steps
 from .index.store import EmbedderMismatchError
-from .llm import ClaudeLLM, LLMAuthError, LLMError
+from .llm import LLMAuthError, LLMError
 from .models import Answer, BenchmarkItem
 from .sources.git import GitRepo
 from .sources.github import GitHubError
@@ -80,10 +80,9 @@ def make_llm() -> LLM:
     (ARCH_PROVIDER, ARCH_MODEL's prefix, or whichever API key is set). Tests monkeypatch
     this to return a FakeLLM."""
     try:
-        provider = llm_provider()
+        llm = default_llm()
     except ValueError as exc:
         _fail(str(exc), 2)
-    llm: LLM = GeminiLLM(gemini_config()) if provider == "gemini" else ClaudeLLM(LLMConfig())
     cfg = _llm_config(llm)
     if cfg is not None:
         grader = f", grading with {cfg.grader_model}" if cfg.grader_model != cfg.model else ""
@@ -523,6 +522,32 @@ def _summary_table(summary: dict[str, Any]) -> Table:
             "n/a" if cost is None else f"${cost:,.2f}",
         )
     return table
+
+
+@app.command("serve")
+def serve_cmd(
+    host: Annotated[str, typer.Option(help="Interface to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8765,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open the website in a browser.")
+    ] = True,
+) -> None:
+    """Start the website (and its API) for opening repositories and asking questions."""
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from .web.app import STATIC_DIR, create_app
+
+    url = f"http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}"
+    if not (STATIC_DIR / "index.html").is_file():
+        err.print("[yellow]The website is not built; run ./start.sh or "
+                  "`cd frontend && npm install && npm run build`. The API still works.[/]")
+    err.print(f"[bold]Archaeologist[/] is running at [link={url}]{url}[/]  (Ctrl-C to stop)")
+    if open_browser:
+        threading.Timer(1.0, webbrowser.open, args=(url,)).start()
+    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
 
 
 if __name__ == "__main__":  # pragma: no cover

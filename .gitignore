@@ -11,3 +11,7 @@ results/
 .env
 .env.*
 !.env.example
+
+# website: dependencies and build output
+frontend/node_modules/
+src/archaeologist/web/static/
