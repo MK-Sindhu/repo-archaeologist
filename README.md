@@ -19,6 +19,16 @@ the full agent, its ablations and the simpler baselines.
 
 Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and git.
 
+The quickest way in is the launcher: it installs dependencies, creates `.env` on first run, clones
+GitHub repos when given `owner/name` or a URL, indexes, and then answers questions:
+
+```bash
+./start.sh pallets/click                                  # then type questions interactively
+./start.sh path/to/repo "why does backoff() cap the delay?"   # one question
+```
+
+Or step by step:
+
 ```bash
 uv sync --extra embed               # the embed extra adds FastEmbed for dense search (optional)
 cp .env.example .env                # then put ANTHROPIC_API_KEY or GEMINI_API_KEY in .env
