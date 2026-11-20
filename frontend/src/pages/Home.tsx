@@ -77,7 +77,7 @@ export function Home({ status }: { status: Status | null }) {
         <div className="home__intro">
           <h1 className="display home__title">Every line of code was written for a&nbsp;reason.</h1>
           <p className="home__lede">
-            Ask why. Archaeologist traces the code back through its commits, pull requests and
+            Ask why. Repo Archaeologist traces the code back through its commits, pull requests and
             issues, and cites everything it finds.
           </p>
 

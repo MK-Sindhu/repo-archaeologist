@@ -9,7 +9,10 @@ import { apiBase, apiHost, buildUrl } from "./config";
 import { ApiError } from "./errors";
 import type {
   AddRepoResponse,
+  CodeSlice,
   CreateRunRequest,
+  Guide,
+  HistoryResponse,
   Job,
   JobEvent,
   JobRef,
@@ -18,6 +21,9 @@ import type {
   RunEvent,
   RunSummary,
   Status,
+  Suggestions,
+  SurveyResponse,
+  OutlineResponse,
 } from "./types";
 
 export { ApiError, isNotApi, isUnreachable } from "./errors";
@@ -35,7 +41,7 @@ export function notApiMessage(base = apiBase()): string {
     );
   }
   return (
-    `The address in VITE_API_URL (${host}) didn't answer like the Archaeologist API. Check ` +
+    `The address in VITE_API_URL (${host}) didn't answer like the Repo Archaeologist API. Check ` +
     "that it is your API's address, without /api at the end, then redeploy the website."
   );
 }
@@ -82,7 +88,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, "Cannot reach the Archaeologist server.");
+    throw new ApiError(0, "Cannot reach the Repo Archaeologist server.");
   }
   if (resp.status === 204) return undefined as T;
   const isJson = (resp.headers.get("content-type") ?? "").includes("application/json");
@@ -125,7 +131,40 @@ const http = {
   },
   run: (id: string) => request<Run>("GET", `/runs/${encodeURIComponent(id)}`),
   createRun: (req: CreateRunRequest) => request<RunSummary>("POST", "/runs", req),
+  suggestions: (id: string) => request<Suggestions>("GET", `${repoPath(id)}/suggestions`),
+  refreshSuggestions: (id: string) => request<Suggestions>("POST", `${repoPath(id)}/suggestions`),
+  survey: (id: string) => request<SurveyResponse>("GET", `${repoPath(id)}/survey`),
+  outline: (id: string, path: string) =>
+    request<OutlineResponse>("GET", `${repoPath(id)}/outline?${query({ path })}`),
+  code: (id: string, path: string, start?: number, end?: number) =>
+    request<CodeSlice>("GET", `${repoPath(id)}/code?${query({ path, start, end })}`),
+  history: (id: string, q: HistoryQuery) =>
+    request<HistoryResponse>(
+      "GET",
+      `${repoPath(id)}/history?${query({ ...q, resolve: q.resolve ? 1 : undefined })}`,
+    ),
+  guide: (id: string) => request<Guide>("GET", `${repoPath(id)}/guide`),
+  writeGuide: (id: string) => request<{ job: JobRef }>("POST", `${repoPath(id)}/guide`),
 };
+
+export interface HistoryQuery {
+  path: string;
+  symbol?: string | null;
+  start?: number | null;
+  end?: number | null;
+  resolve?: boolean; // also ask GitHub for each commit's pull request (uses GitHub quota)
+}
+
+function repoPath(id: string): string {
+  return `/repos/${encodeURIComponent(id)}`;
+}
+
+/** Query string from defined, non-null values. */
+function query(values: Record<string, string | number | boolean | null | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(values)) if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  return q.toString();
+}
 
 export type Api = typeof http;
 

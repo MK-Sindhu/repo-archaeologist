@@ -3,6 +3,8 @@ import { api, isNotApi, isUnreachable } from "./api/client";
 import type { Status } from "./api/types";
 
 /** Current time, ticking every `ms` while `active`. */
+export const PRODUCT = "Repo Archaeologist";
+
 export function useNow(active: boolean, ms = 1000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -55,11 +57,15 @@ export function useServerStatus(retryMs = 5000): ServerState {
 
 export function usePrefersReducedMotion(): boolean {
   const query = "(prefers-reduced-motion: reduce)";
-  const [reduced, setReduced] = useState(() => window.matchMedia?.(query).matches ?? false);
+  // false on the server; the effect corrects it on mount
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && (window.matchMedia?.(query).matches ?? false),
+  );
   useEffect(() => {
     const mq = window.matchMedia?.(query);
     if (!mq) return;
     const on = () => setReduced(mq.matches);
+    on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
@@ -68,6 +74,6 @@ export function usePrefersReducedMotion(): boolean {
 
 export function useDocumentTitle(title: string): void {
   useEffect(() => {
-    document.title = title ? `${title} · Archaeologist` : "Archaeologist";
+    document.title = title ? `${title} · ${PRODUCT}` : PRODUCT;
   }, [title]);
 }

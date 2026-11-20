@@ -6,6 +6,8 @@ import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/section.css";
 import "./styles/pages.css";
+import "./styles/site.css";
+import "./styles/map.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

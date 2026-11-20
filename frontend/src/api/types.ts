@@ -87,7 +87,7 @@ export type JobStatus = "queued" | "running" | "done" | "error";
 
 export interface JobRef {
   id: string;
-  kind: "add_repo" | "reindex";
+  kind: "add_repo" | "reindex" | "guide";
   status: JobStatus;
 }
 
@@ -99,7 +99,8 @@ export interface Job extends JobRef {
 }
 
 export type JobEvent =
-  /** stage: "clone" | "pull" | "files" | "commits" | "embed"; total null when unknown */
+  /** stage: "clone" | "pull" | "files" | "commits" | "embed" | "survey" | "suggest" (repo
+   *  jobs) or "gather" | "write" | "check" (guide jobs); total null when unknown */
   | { type: "progress"; stage: string; done: number; total: number | null; message: string }
   | { type: "log"; level: "info" | "warning" | "error"; message: string }
   /** terminal when status is "done" (repo is the refreshed summary) or "error" */
@@ -233,4 +234,163 @@ export interface AnswerPayload {
   usage: { calls?: number; input_tokens?: number; output_tokens?: number };
   latency_s: number | null;
   model: string;
+  /** "why": dug through history (why/when/who questions); "explain": explained the code as
+   *  it is now (what/where/how questions, and repositories with little history) */
+  mode?: "why" | "explain";
+}
+
+// ---------------------------------------------------------------- repository survey (Map tab)
+//
+// All repository endpoints below are read-only, never rebuild the index, and answer
+// {status: "pending"} (HTTP 200) while an open/re-index job for the repository is running.
+// 404 {detail} for an unknown repository. A repository id made from a GitHub slug looks like
+// "<owner>__<name>-<8 hex>" (see repoSlugFromId in api/repoId.ts): after the server restarts
+// on a free plan its repositories are gone, and the slug lets the page offer to reopen it.
+
+/** [path, bytes at HEAD, number of commits that changed it, unix time of the last change or
+ *  null when outside the scanned history] */
+export type SurveyFile = [path: string, bytes: number, changes: number, lastEpoch: number | null];
+
+/** GET /api/repos/{id}/survey */
+export type SurveyResponse = { status: "pending" } | Survey;
+
+export interface Survey {
+  status: "ready";
+  head: string; // full sha the survey describes
+  truncated: boolean; // history scan stopped at its cap (5000 commits) or timeout
+  totals: {
+    files: number; // files at HEAD that are indexed (include/exclude rules applied)
+    bytes: number;
+    commits: number; // exact, all history
+    authors: number; // in the scanned history
+    first_commit: string | null; // ISO-8601
+    last_commit: string | null;
+  };
+  languages: { name: string; bytes: number; files: number }[]; // biggest first
+  files: SurveyFile[];
+  months: { month: string; commits: number }[]; // "2024-02", oldest first, gaps filled with 0
+  authors: { name: string; commits: number }[]; // most commits first, at most 20
+  hotspots: { path: string; changes: number; recent_changes: number; last_change: string }[];
+  // recent_changes: in the last 12 months; at most 20, most changed first
+}
+
+export type OutlineKind =
+  | "class"
+  | "function"
+  | "method"
+  | "interface"
+  | "type"
+  | "enum"
+  | "module"
+  | "other";
+
+export interface OutlineSymbol {
+  name: string; // "run"
+  qualified: string; // "Retrier.run"
+  kind: OutlineKind;
+  start: number; // 1-based, inclusive
+  end: number;
+  signature: string; // first line(s) of the definition, e.g. "def run(self, fn):"
+  doc: string | null; // first sentence of the docstring / doc comment
+}
+
+/** GET /api/repos/{id}/outline?path=<file> */
+export type OutlineResponse =
+  | { status: "pending" }
+  | {
+      status: "ready";
+      path: string;
+      language: string | null; // "python", "typescript", ...
+      supported: boolean; // false: no outline for this language (yet); symbols is []
+      symbols: OutlineSymbol[]; // in source order; methods follow their class
+    };
+
+/** GET /api/repos/{id}/code?path=<file>&start=<a>&end=<b> (at most 400 lines; 1-based) */
+export interface CodeSlice {
+  path: string;
+  start: number;
+  end: number;
+  total_lines: number;
+  language: string | null;
+  text: string;
+}
+
+/** GET /api/repos/{id}/history?path=&symbol=&start=&end=&resolve=0|1
+ *  Commits that changed a symbol (or a line range, or the whole file), newest first, as finds
+ *  (kind "commit"; refs carry pr:/issue: links). Links come from commit messages only unless
+ *  resolve=1, which also asks GitHub which pull request each commit belongs to (uses GitHub
+ *  quota, so it is an explicit action in the UI). */
+export type HistoryResponse =
+  | { status: "pending" }
+  | {
+      status: "ready";
+      path: string;
+      symbol: string | null;
+      start: number | null;
+      end: number | null;
+      resolved: boolean;
+      commits: Find[];
+      prs: Find[]; // pull requests / issues named in those commits that could be fetched
+    };
+
+// ---------------------------------------------------------------- suggested questions
+
+export type SuggestionKind = "what" | "how" | "where" | "why";
+
+export interface Suggestion {
+  question: string;
+  kind: SuggestionKind; // what/how/where: "Find your way around"; why: "Why is it like this?"
+  path: string | null; // the file it is about, when there is one
+  symbol: string | null;
+}
+
+/** GET /api/repos/{id}/suggestions; POST the same path (202) writes them again.
+ *  Template suggestions are ready as soon as the repository is indexed; an LLM then writes
+ *  better ones in the background (status "pending" meanwhile, items = the templates).
+ *  POST is rate limited like questions (429) and needs an LLM key (503). */
+export interface Suggestions {
+  status: "pending" | "ready" | "failed";
+  source: "template" | "llm";
+  head: string | null;
+  items: Suggestion[];
+}
+
+// ---------------------------------------------------------------- field guide (Guide tab)
+
+/** GET /api/repos/{id}/guide. POST the same path (202 {job: JobRef}, kind "guide") writes it;
+ *  follow the job's events, then GET again. POST counts as 3 questions against the rate
+ *  limit (429) and needs an LLM key (503). */
+export interface Guide {
+  status: "missing" | "pending" | "ready" | "failed";
+  head: string | null;
+  markdown: string | null; // sections as "## " headings; cites finds inline like answers
+  citations: string[];
+  evidence: Find[]; // with text, like AnswerPayload.evidence
+  generated_at: string | null;
+  model: string | null;
+  error: string | null;
+  job: JobRef | null; // the running job when status is "pending"
+}
+
+// ---------------------------------------------------------------- public site recordings
+//
+// Real investigations recorded once (scripts/record_showcase.py) and replayed on the public
+// site with no API calls. Files: public/showcase/index.json (ShowcaseIndex) and
+// public/showcase/<slug>.json (ShowcaseRecording). Every number the site shows about them is
+// computed from these files.
+
+export interface ShowcaseRecording {
+  slug: string; // "markupsafe-striptags"
+  repo: { slug: string; web_url: string; language: string; commits: number | null };
+  recorded_at: string; // ISO-8601
+  run: Run; // as GET /api/runs/:id returned it; long find texts trimmed
+}
+
+export interface ShowcaseIndex {
+  recordings: {
+    slug: string;
+    repo: ShowcaseRecording["repo"];
+    question: string;
+    recorded_at: string;
+  }[];
 }

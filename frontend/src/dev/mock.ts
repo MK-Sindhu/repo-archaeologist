@@ -17,10 +17,20 @@ import {
   mockRun,
   mockRunSummary,
 } from "./mockData";
+import {
+  MOCK_FRESH_REPO,
+  mockCode,
+  mockGuide,
+  mockHistory,
+  mockOutline,
+  mockSuggestions,
+  mockSurvey,
+} from "./mockRepoData";
 
 const delay = <T>(value: T, ms = 120) => new Promise<T>((r) => setTimeout(() => r(value), ms));
 
-const repos: RepoSummary[] = [...MOCK_REPOS];
+const repos: RepoSummary[] = [...MOCK_REPOS, MOCK_FRESH_REPO];
+const guides = new Map<string, "missing" | "pending" | "ready">();
 const runs: RunSummary[] = [mockRunSummary("demo", "done"), mockRunSummary("failed", "error")];
 runs[1] = { ...runs[1], created_at: new Date(Date.now() - 50 * 60e3).toISOString(), error: mockRun("failed").error };
 
@@ -91,6 +101,23 @@ const openApi: Api = {
     runs.unshift(run);
     return delay(run);
   },
+  suggestions: async (id) => delay(mockSuggestions(id), 400),
+  refreshSuggestions: async (id) => delay({ ...mockSuggestions(id, "template"), status: "pending" as const }),
+  survey: async (id) => delay(mockSurvey(id), 300),
+  outline: async (_id, path) => delay(mockOutline(path)),
+  code: async (_id, path, start, end) => delay(mockCode(path, start, end)),
+  history: async (_id, q) => delay(mockHistory(q.path, q.symbol ?? null, !!q.resolve), q.resolve ? 900 : 300),
+  guide: async (id) => {
+    const state = guides.get(id) ?? (id === MOCK_REPOS[0].id ? "ready" : "missing");
+    return delay(mockGuide(state));
+  },
+  writeGuide: async (id) => {
+    guides.set(id, "pending");
+    const jobId = `job-guide-${id}`;
+    jobRepo.set(jobId, id);
+    setTimeout(() => guides.set(id, "ready"), 3200);
+    return delay({ job: { id: jobId, kind: "guide" as const, status: "running" as const } });
+  },
 };
 
 export const mockApi: Api = Object.fromEntries(
@@ -116,6 +143,16 @@ function jobScript(repoId: string): { event: JobEvent; wait: number }[] {
   return steps;
 }
 
+function guideScript(): { event: JobEvent; wait: number }[] {
+  return [
+    { event: { type: "status", status: "running" }, wait: 100 },
+    { event: { type: "progress", stage: "gather", done: 0, total: null, message: "Reading the README, the folders and the entry points" }, wait: 600 },
+    { event: { type: "progress", stage: "write", done: 1, total: 3, message: "Writing the guide" }, wait: 1200 },
+    { event: { type: "progress", stage: "check", done: 3, total: 3, message: "Checking every claim" }, wait: 1000 },
+    { event: { type: "status", status: "done", error: null, repo: null }, wait: 400 },
+  ];
+}
+
 export function mockSubscribe(path: string, h: StreamHandlers<RunEvent | JobEvent>): () => void {
   let timers: ReturnType<typeof setTimeout>[] = [];
   const play = (script: { event: RunEvent | JobEvent; wait: number }[]) => {
@@ -136,7 +173,8 @@ export function mockSubscribe(path: string, h: StreamHandlers<RunEvent | JobEven
       play(mockRun(id).events.map((event) => ({ event, wait: 0 })));
     }
   } else if (job) {
-    play(jobScript(jobRepo.get(decodeURIComponent(job[1])) ?? MOCK_REPOS[0].id));
+    const jobId = decodeURIComponent(job[1]);
+    play(jobId.startsWith("job-guide-") ? guideScript() : jobScript(jobRepo.get(jobId) ?? MOCK_REPOS[0].id));
   }
   return () => {
     timers.forEach(clearTimeout);

@@ -3,6 +3,7 @@
 export type Theme = "light" | "dark";
 
 export function currentTheme(): Theme {
+  if (typeof document === "undefined") return "light"; // server render: the head script decides
   const set = document.documentElement.dataset.theme;
   if (set === "light" || set === "dark") return set;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
