@@ -1,8 +1,14 @@
 /** In-browser stand-in for the backend, enabled with `?mock=1`. Serves the toy-repo fixtures:
  *  /run/demo (finished), /run/live (streams the same investigation on a timer),
- *  /run/queued, /run/failed; opening any repository streams a fake clone + index job. */
+ *  /run/queued, /run/failed; opening any repository streams a fake clone + index job.
+ *  It needs no access code and no VITE_API_URL. Opt-in scenarios (`&scenario=` on the first
+ *  load) exercise the hosted-site states:
+ *    locked  the API requires an access code; the code is "demo"
+ *    asleep  the first two status checks fail as if the server were waking up */
 
+import { access } from "../api/access";
 import type { Api, StreamHandlers } from "../api/client";
+import { ApiError } from "../api/errors";
 import type { JobEvent, RepoSummary, RunEvent, RunSummary } from "../api/types";
 import {
   DEMO_EVENTS,
@@ -20,12 +26,44 @@ runs[1] = { ...runs[1], created_at: new Date(Date.now() - 50 * 60e3).toISOString
 
 const jobRepo = new Map<string, string>();
 
-export const mockApi: Api = {
-  status: () => delay(MOCK_STATUS),
+let scenario: string | null | undefined;
+function mockScenario(): string | null {
+  if (scenario === undefined) scenario = new URLSearchParams(window.location.search).get("scenario");
+  return scenario;
+}
+let statusCalls = 0;
+
+/** In the "locked" scenario every call but status needs the code "demo". */
+async function guard<T>(fn: () => Promise<T>): Promise<T> {
+  if (mockScenario() === "locked" && access.get() !== "demo") {
+    await delay(null);
+    throw new ApiError(401, "This site is private. Enter the access code to continue.", "This site is private. Enter the access code to continue.");
+  }
+  return fn();
+}
+
+export async function mockCheckAccess(code: string): Promise<void> {
+  await delay(null, 250);
+  if (mockScenario() === "locked" && code !== "demo") {
+    throw new ApiError(401, "That access code is not right.", "That access code is not right.");
+  }
+}
+
+const statusApi = async () => {
+  statusCalls += 1;
+  if (mockScenario() === "asleep" && statusCalls <= 2) {
+    await delay(null, 300);
+    throw new ApiError(503, "Service Unavailable");
+  }
+  return delay({ ...MOCK_STATUS, access_required: mockScenario() === "locked" });
+};
+
+const openApi: Api = {
+  status: statusApi,
   repos: () => delay(repos),
   repo: async (id) => {
     const r = repos.find((x) => x.id === id);
-    if (!r) throw Object.assign(new Error("No repository with that id."), { status: 404 });
+    if (!r) throw new ApiError(404, "No repository with that id.");
     return delay(r);
   },
   addRepo: async (source) => {
@@ -54,6 +92,13 @@ export const mockApi: Api = {
     return delay(run);
   },
 };
+
+export const mockApi: Api = Object.fromEntries(
+  Object.entries(openApi).map(([key, fn]) => [
+    key,
+    key === "status" ? fn : (...args: unknown[]) => guard(() => (fn as (...a: unknown[]) => Promise<unknown>)(...args)),
+  ]),
+) as Api;
 
 function jobScript(repoId: string): { event: JobEvent; wait: number }[] {
   const repo = repos.find((r) => r.id === repoId) ?? MOCK_REPOS[0];

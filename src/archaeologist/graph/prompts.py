@@ -39,7 +39,9 @@ Give every evidence item exactly one grade, using its id exactly as shown:
 1 = tangential; 0 = irrelevant.
 In `follow`, list canonical refs (commit:<sha>, pr:<n>, issue:<n>, gh:<n>) worth fetching
 next because they likely explain why the code is the way it is: usually the PR or issue a
-relevant commit or PR links to. Use only refs that appear in the evidence. {_UNTRUSTED}"""
+relevant commit or PR links to. Use only refs that appear in the evidence.
+A pull request closed without being merged did not ship: grade it at most 1 unless the
+question is about that rejected change. {_UNTRUSTED}"""
 
 SYNTHESIZE_SYSTEM = f"""\
 You answer questions about why code is the way it is, using only the evidence provided.
@@ -50,6 +52,8 @@ Rules:
   motivation stated in commit messages, PRs or issues). Do not infer motives the evidence
   does not state. If the evidence shows what changed but not why, say plainly that the
   evidence does not establish why.
+- Pull requests whose status says they were closed without being merged did not ship; do
+  not cite them as the reason for the current code.
 - Start with a direct answer of one or two sentences, then short "What changed" and "Why"
   sections. Be concise.
 - cited_ids lists every id you cited. confidence reflects how well the evidence supports

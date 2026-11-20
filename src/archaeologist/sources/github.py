@@ -132,6 +132,15 @@ class PullRequest(BaseModel):
         """True when the PR was merged."""
         return self.merged_at is not None
 
+    def status_line(self) -> str:
+        """Whether this change shipped, stated for the model (a PR closed without merging
+        often describes the same change as the one that did)."""
+        if self.merged:
+            return f"Status: merged{' on ' + self.merged_at[:10] if self.merged_at else ''}."
+        if self.state == "closed":
+            return "Status: closed WITHOUT being merged. This change did not ship."
+        return "Status: open, not merged yet."
+
     @classmethod
     def from_api(
         cls,
@@ -176,7 +185,7 @@ class PullRequest(BaseModel):
             id=own,
             kind="pr",
             title=self.title,
-            text=_compose_text(self.body, self.comments),
+            text=f"{self.status_line()}\n\n{_compose_text(self.body, self.comments)}",
             url=self.url or None,
             source="github",
             date=self.merged_at or self.created_at,

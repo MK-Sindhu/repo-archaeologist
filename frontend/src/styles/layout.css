@@ -97,6 +97,35 @@
   font-weight: 700;
 }
 
+.banner--waiting .banner__inner {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.banner--waiting .live-dot {
+  flex: none;
+  transform: translateY(-1px);
+}
+
+.header__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--graphite);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.header__lock:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 .crumbs {
   padding: 28px 0 10px;
   font-size: var(--fs-sm);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "./api/client";
+import { api, isUnreachable } from "./api/client";
 import type { Status } from "./api/types";
 
 /** Current time, ticking every `ms` while `active`. */
@@ -14,23 +14,40 @@ export function useNow(active: boolean, ms = 1000): number {
   return now;
 }
 
-let statusCache: Promise<Status> | null = null;
+export type ServerState =
+  | { phase: "loading"; status: null }
+  | { phase: "ok"; status: Status }
+  | { phase: "unreachable"; status: null } // down or waking up; retrying
+  | { phase: "failed"; status: null }; // answered with an error; carry on without status
 
-/** GET /api/status, shared across components; null until loaded or if it fails. */
-export function useStatus(): Status | null {
-  const [status, setStatus] = useState<Status | null>(null);
+/** GET /api/status. While the server cannot be reached (network error, 502/503/504: free
+ *  hosting plans pause idle servers) it retries every `retryMs` until it answers. */
+export function useServerStatus(retryMs = 5000): ServerState {
+  const [state, setState] = useState<ServerState>({ phase: "loading", status: null });
   useEffect(() => {
     let live = true;
-    statusCache ??= api.status().catch((e) => {
-      statusCache = null;
-      throw e;
-    });
-    statusCache.then((s) => live && setStatus(s)).catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      api
+        .status()
+        .then((status) => live && setState({ phase: "ok", status }))
+        .catch((err) => {
+          if (!live) return;
+          if (isUnreachable(err)) {
+            setState({ phase: "unreachable", status: null });
+            timer = setTimeout(attempt, retryMs);
+          } else {
+            setState({ phase: "failed", status: null });
+          }
+        });
+    };
+    attempt();
     return () => {
       live = false;
+      clearTimeout(timer);
     };
-  }, []);
-  return status;
+  }, [retryMs]);
+  return state;
 }
 
 export function usePrefersReducedMotion(): boolean {

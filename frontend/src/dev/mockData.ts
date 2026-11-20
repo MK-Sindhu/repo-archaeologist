@@ -19,6 +19,7 @@ export const MOCK_STATUS: Status = {
   llm_hint: null,
   github: "gh",
   allow_local_paths: true,
+  access_required: false,
   version: "0.1.0",
 };
 

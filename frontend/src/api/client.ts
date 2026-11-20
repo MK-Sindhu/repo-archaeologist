@@ -1,7 +1,12 @@
-/** Typed client for the web API (see ./types.ts). With `?mock=1` (remembered for the tab)
- *  every call is served by the in-browser mock in ../dev/mock.ts instead. */
+/** Typed client for the web API (see ./types.ts). Requests go to VITE_API_URL (or the same
+ *  origin) and carry the site's access code when one is stored: as the X-Access-Code header,
+ *  or as the `access` query parameter on event streams. With `?mock=1` (remembered for the
+ *  tab) every call is served by the in-browser mock in ../dev/mock.ts instead. */
 
-import { mockApi, mockSubscribe } from "../dev/mock";
+import { mockApi, mockCheckAccess, mockSubscribe } from "../dev/mock";
+import { access } from "./access";
+import { apiBase, buildUrl } from "./config";
+import { ApiError } from "./errors";
 import type {
   AddRepoResponse,
   CreateRunRequest,
@@ -15,12 +20,15 @@ import type {
   Status,
 } from "./types";
 
-export class ApiError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
+export { ApiError, isUnreachable } from "./errors";
+
+type UnauthorizedListener = (detail: string) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+/** Called with the server's detail whenever a request is refused for a missing/wrong code. */
+export function onUnauthorized(fn: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(fn);
+  return () => unauthorizedListeners.delete(fn);
 }
 
 let mockFlag: boolean | null = null;
@@ -38,16 +46,25 @@ export function isMock(): boolean {
   return on;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+interface RequestOptions {
+  code?: string | null; // send this access code instead of the stored one
+  quiet401?: boolean; // do not tell the app about a 401 (the caller handles it)
+}
+
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const code = opts.code !== undefined ? opts.code : access.get();
+  if (code) headers["X-Access-Code"] = code;
   let resp: Response;
   try {
-    resp = await fetch(`/api${path}`, {
+    resp = await fetch(buildUrl(apiBase(), path), {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, "Cannot reach the Archaeologist server. Is it still running?");
+    throw new ApiError(0, "Cannot reach the Archaeologist server.");
   }
   if (resp.status === 204) return undefined as T;
   let data: unknown = null;
@@ -57,11 +74,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     /* non-JSON body */
   }
   if (!resp.ok) {
-    const detail =
+    const sent =
       data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
         ? data.detail
-        : `The server answered ${resp.status} ${resp.statusText}.`;
-    throw new ApiError(resp.status, detail);
+        : null;
+    const message = sent ?? `The server answered ${resp.status} ${resp.statusText}.`;
+    if (resp.status === 401 && !opts.quiet401) unauthorizedListeners.forEach((fn) => fn(message));
+    throw new ApiError(resp.status, message, sent);
   }
   return data as T;
 }
@@ -85,6 +104,13 @@ const http = {
 };
 
 export type Api = typeof http;
+
+/** Check an access code against an endpoint that needs it, without storing it. Throws
+ *  ApiError (401 when the code is wrong). */
+export async function checkAccess(code: string): Promise<void> {
+  if (isMock()) return mockCheckAccess(code);
+  await request<unknown>("GET", "/repos", undefined, { code, quiet401: true });
+}
 
 export const api: Api = new Proxy(http, {
   get(target, key: keyof Api) {
@@ -110,7 +136,7 @@ export function subscribe<E extends RunEvent | JobEvent>(
   handlers: StreamHandlers<E>,
 ): () => void {
   if (isMock()) return mockSubscribe(path, handlers as StreamHandlers<RunEvent | JobEvent>);
-  const source = new EventSource(`/api${path}`);
+  const source = new EventSource(buildUrl(apiBase(), path, access.get()));
   let fallback = 0;
   let failures = 0;
   source.onmessage = (msg) => {

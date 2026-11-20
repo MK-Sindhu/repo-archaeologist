@@ -11,7 +11,8 @@ from ..models import Answer, Evidence
 
 EXCERPT_CHARS = 600
 FULL_CHARS = 6000
-META_KEYS = ("path", "start_line", "end_line", "symbol", "author", "short_sha", "shallow_boundary")
+META_KEYS = ("path", "start_line", "end_line", "symbol", "author", "short_sha", "shallow_boundary",
+             "state", "merged")
 
 
 def find_payload(item: Evidence, *, full: bool = False) -> dict[str, Any]:

@@ -237,7 +237,7 @@ def test_unmerged_pr_evidence_has_no_merge_commit(fake):
     e = client(fake).get_pr(20).to_evidence("acme", "toy")
     assert e.refs == ["gh:4"]
     assert e.date == "2024-02-10T09:00:00Z"
-    assert e.text == "See #4"
+    assert e.text.endswith("\n\nSee #4") and "not merged" in e.text
 
 
 def test_bot_author_detection():
@@ -681,8 +681,18 @@ def test_evidence_short_body_keeps_everything():
         body="Short body.",
         comments=[Comment(author="a", body="first\n\nreply", created_at="2024-01-01")],
     )
-    assert pr.to_evidence().text == "Short body.\n\nDiscussion:\n- @a: first reply"
-    assert PullRequest(number=3, title="Empty").to_evidence().text == "(no description)"
+    status = "Status: open, not merged yet.\n\n"
+    assert pr.to_evidence().text == status + "Short body.\n\nDiscussion:\n- @a: first reply"
+    assert PullRequest(number=3, title="Empty").to_evidence().text == status + "(no description)"
+
+
+def test_pr_evidence_says_whether_it_shipped():
+    merged = PullRequest(number=4, title="Fix", state="closed", merged_at="2026-03-02T10:00:00Z")
+    rejected = PullRequest(number=5, title="AI junk", state="closed", body="Same fix, again.")
+    assert merged.to_evidence().text.startswith("Status: merged on 2026-03-02.")
+    ev = rejected.to_evidence()
+    assert ev.text.startswith("Status: closed WITHOUT being merged. This change did not ship.")
+    assert ev.meta["merged"] is False and ev.meta["state"] == "closed"
 
 
 def test_client_is_thread_safe(fake, tmp_path: Path):

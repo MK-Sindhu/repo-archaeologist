@@ -115,10 +115,14 @@ export function FindTag({
       <span className="find__foot">
         <GradeMarks grade={grade} />
         <span className="find__id">{shortId(find)}</span>
+        {find.kind === "pr" && find.meta.merged === false && find.meta.state === "closed" && (
+          <span className="find__flag">not merged</span>
+        )}
       </span>
     </>
   );
-  const aria = `${label}, ${KIND_LABEL[find.kind]}: ${find.title}. ${STATE_LABEL[state]}${
+  const unmerged = find.kind === "pr" && find.meta.merged === false && find.meta.state === "closed";
+  const aria = `${label}, ${KIND_LABEL[find.kind]}: ${find.title}${unmerged ? " (not merged)" : ""}. ${STATE_LABEL[state]}${
     grade !== null ? `, relevance ${grade} of 3` : ""
   }`;
   if (!onSelect) {

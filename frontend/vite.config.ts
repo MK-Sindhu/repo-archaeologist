@@ -1,11 +1,17 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// Built assets go into the Python package so FastAPI can serve them (src/archaeologist/web/static).
+// Where the build goes:
+// - locally: into the Python package, so FastAPI serves the site (src/archaeologist/web/static)
+// - on Vercel (VERCEL is set by the platform): "dist", the outputDirectory in vercel.json
+// - FRONTEND_OUT_DIR overrides both
+const outDir =
+  process.env.FRONTEND_OUT_DIR || (process.env.VERCEL ? "dist" : "../src/archaeologist/web/static");
+
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: "../src/archaeologist/web/static",
+    outDir,
     emptyOutDir: true,
     sourcemap: false,
   },

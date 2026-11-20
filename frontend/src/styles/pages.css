@@ -675,6 +675,30 @@
   font-size: var(--fs-xs);
 }
 
+/* -- access gate ----------------------------------------------------------------------- */
+
+.gate {
+  padding-top: clamp(48px, 10vh, 120px);
+}
+
+.gate__title {
+  font-size: var(--fs-xl);
+  max-width: 18ch;
+}
+
+.gate__text {
+  margin-top: 12px;
+  max-width: 48ch;
+  color: var(--ink-soft);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.gate__form {
+  margin-top: 28px;
+  max-width: 440px;
+}
+
 /* -- not found -------------------------------------------------------------------------- */
 
 .notfound {

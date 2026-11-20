@@ -169,6 +169,8 @@ export interface Find {
     author?: string;
     short_sha?: string;
     shallow_boundary?: boolean;
+    state?: string; // PRs / issues: "open" | "closed"
+    merged?: boolean; // PRs: false + state "closed" = closed without merging (did not ship)
   };
 }
 
