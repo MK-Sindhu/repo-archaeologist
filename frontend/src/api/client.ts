@@ -5,7 +5,7 @@
 
 import { mockApi, mockCheckAccess, mockSubscribe } from "../dev/mock";
 import { access } from "./access";
-import { apiBase, buildUrl } from "./config";
+import { apiBase, apiHost, buildUrl } from "./config";
 import { ApiError } from "./errors";
 import type {
   AddRepoResponse,
@@ -20,7 +20,25 @@ import type {
   Status,
 } from "./types";
 
-export { ApiError, isUnreachable } from "./errors";
+export { ApiError, isNotApi, isUnreachable } from "./errors";
+
+/** What to tell the person when the API address answers with something else (usually the
+ *  website itself: on Vercel without VITE_API_URL, "/api/..." is the website's own host). */
+export function notApiMessage(base = apiBase()): string {
+  const host = apiHost(base);
+  if (!host) {
+    return (
+      "This website isn't connected to its API: /api answered with a web page. If the website " +
+      "is on Vercel, set VITE_API_URL to your API's address (e.g. " +
+      "https://repo-archaeologist-api.onrender.com) under Settings → Environment Variables, " +
+      "then redeploy."
+    );
+  }
+  return (
+    `The address in VITE_API_URL (${host}) didn't answer like the Archaeologist API. Check ` +
+    "that it is your API's address, without /api at the end, then redeploy the website."
+  );
+}
 
 type UnauthorizedListener = (detail: string) => void;
 const unauthorizedListeners = new Set<UnauthorizedListener>();
@@ -67,6 +85,11 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     throw new ApiError(0, "Cannot reach the Archaeologist server.");
   }
   if (resp.status === 204) return undefined as T;
+  const isJson = (resp.headers.get("content-type") ?? "").includes("application/json");
+  if (!isJson && ![502, 503, 504].includes(resp.status)) {
+    // a 502/503/504 page is a host waking up or briefly down: left to isUnreachable
+    throw new ApiError(resp.status, notApiMessage(), null, true);
+  }
   let data: unknown = null;
   try {
     data = await resp.json();
@@ -78,7 +101,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
       data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
         ? data.detail
         : null;
-    const message = sent ?? `The server answered ${resp.status} ${resp.statusText}.`;
+    const reason = resp.statusText ? ` (${resp.statusText})` : "";
+    const message = sent ?? `The server answered with an error ${resp.status}${reason}.`;
     if (resp.status === 401 && !opts.quiet401) unauthorizedListeners.forEach((fn) => fn(message));
     throw new ApiError(resp.status, message, sent);
   }

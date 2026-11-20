@@ -3,7 +3,7 @@ import { access } from "./api/access";
 import { onUnauthorized } from "./api/client";
 import { apiHost } from "./api/config";
 import { AccessGate } from "./components/AccessGate";
-import { Header, ServerBanner } from "./components/Header";
+import { Header, ServerBanner, SetupBanner } from "./components/Header";
 import { useServerStatus } from "./hooks";
 import { Home } from "./pages/Home";
 import { NotFound } from "./pages/NotFound";
@@ -33,6 +33,7 @@ export function App() {
         onLock={status?.access_required && code && !locked ? () => access.clear() : undefined}
       />
       {server.phase === "unreachable" && <ServerBanner host={apiHost()} />}
+      {server.phase === "notApi" && <SetupBanner message={server.message} />}
       <div id="content" tabIndex={-1} className="content">
         {waiting ? (
           <main className="container" aria-busy="true" />

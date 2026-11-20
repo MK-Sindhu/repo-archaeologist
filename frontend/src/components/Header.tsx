@@ -75,6 +75,17 @@ export function Header({ status, onLock }: { status: Status | null; onLock?: () 
   );
 }
 
+/** The website reached something that is not its API: a deployment setting to fix. */
+export function SetupBanner({ message }: { message: string }) {
+  return (
+    <div className="banner" role="alert">
+      <div className="container banner__inner">
+        <span>{message}</span>
+      </div>
+    </div>
+  );
+}
+
 /** The API did not answer: probably a free-plan server waking up. Retries run in the app. */
 export function ServerBanner({ host }: { host: string | null }) {
   return (

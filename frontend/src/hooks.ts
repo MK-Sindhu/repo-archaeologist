@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, isUnreachable } from "./api/client";
+import { api, isNotApi, isUnreachable } from "./api/client";
 import type { Status } from "./api/types";
 
 /** Current time, ticking every `ms` while `active`. */
@@ -18,7 +18,8 @@ export type ServerState =
   | { phase: "loading"; status: null }
   | { phase: "ok"; status: Status }
   | { phase: "unreachable"; status: null } // down or waking up; retrying
-  | { phase: "failed"; status: null }; // answered with an error; carry on without status
+  | { phase: "failed"; status: null } // answered with an error; carry on without status
+  | { phase: "notApi"; status: null; message: string }; // wrong/missing API address (setup)
 
 /** GET /api/status. While the server cannot be reached (network error, 502/503/504: free
  *  hosting plans pause idle servers) it retries every `retryMs` until it answers. */
@@ -36,6 +37,8 @@ export function useServerStatus(retryMs = 5000): ServerState {
           if (isUnreachable(err)) {
             setState({ phase: "unreachable", status: null });
             timer = setTimeout(attempt, retryMs);
+          } else if (isNotApi(err)) {
+            setState({ phase: "notApi", status: null, message: err.message });
           } else {
             setState({ phase: "failed", status: null });
           }

@@ -124,6 +124,42 @@ describe("client", () => {
     expect(isUnreachable(await api.status().catch((e) => e))).toBe(false);
     reply = () => new Response("nope", { status: 418, statusText: "I'm a teapot" });
     expect(await api.status().catch((e) => e)).toMatchObject({ status: 418, detail: null });
+    // a host waking up may answer with an HTML 503 page: still "unreachable", not a setup error
+    reply = () => new Response("<html>waking</html>", { status: 503, headers: { "Content-Type": "text/html" } });
+    expect(isUnreachable(await api.status().catch((e) => e))).toBe(true);
+  });
+
+  it("explains a website that is not connected to its API (e.g. Vercel without VITE_API_URL)", async () => {
+    vi.stubEnv("VITE_API_URL", "");
+    const { api, isNotApi, isUnreachable } = await load();
+    // Vercel serves the website's index.html for GET /api/status ...
+    reply = () => new Response("<!doctype html><title>Archaeologist</title>", {
+      status: 200, headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+    const status = await api.status().catch((e) => e);
+    expect(isNotApi(status)).toBe(true);
+    expect(isUnreachable(status)).toBe(false);
+    expect(status.message).toContain("VITE_API_URL");
+    expect(status.message).toContain("redeploy");
+    // ... and refuses POST /api/repos with a bare 405
+    reply = () => new Response("", { status: 405 });
+    const add = await api.addRepo("owner/name").catch((e) => e);
+    expect(add).toMatchObject({ status: 405, notApi: true });
+    expect(add.message).toContain("VITE_API_URL");
+  });
+
+  it("names the configured host when VITE_API_URL points somewhere else", async () => {
+    const { api, isNotApi } = await load();
+    reply = () => new Response("<html>someone else</html>", { status: 200, headers: { "Content-Type": "text/html" } });
+    const err = await api.status().catch((e) => e);
+    expect(isNotApi(err)).toBe(true);
+    expect(err.message).toContain("api.example.com");
+  });
+
+  it("words generic errors without stray spaces", async () => {
+    const { api } = await load();
+    reply = () => json(500, {});
+    expect((await api.status().catch((e) => e)).message).toBe("The server answered with an error 500.");
   });
 
   it("mock mode needs neither the API nor an access code", async () => {
