@@ -21,8 +21,7 @@ Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and git.
 
 ```bash
 uv sync --extra embed               # the embed extra adds FastEmbed for dense search (optional)
-export ANTHROPIC_API_KEY=sk-ant-... # Claude does the analysis, grading and writing
-export GITHUB_TOKEN=...             # optional; `gh auth login` also works
+cp .env.example .env                # then put ANTHROPIC_API_KEY (and optionally GITHUB_TOKEN) in .env
 
 uv run arch index path/to/repo
 uv run arch ask path/to/repo "why does backoff() cap the delay at 30 seconds?"
@@ -56,6 +55,9 @@ uv run arch eval path/to/repo bench.jsonl --systems agent,single_commit,plain_ra
 and judgement, so start small with `--limit`.
 
 ### Configuration
+
+Set these in your shell or in a `.env` file (git-ignored), read from the current directory and
+the project checkout. Shell variables win over `.env`; `ARCH_NO_DOTENV=1` turns the file off.
 
 | variable | default | meaning |
 |---|---|---|

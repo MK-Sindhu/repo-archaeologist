@@ -118,3 +118,32 @@ def test_claude_llm_structured_through_real_sdk():
 def test_toy_repo_fixture(toy_repo_shas):
     path, shas = toy_repo_shas
     assert len(shas) == 4 and (path / "src/pkg/retry.py").exists()
+
+
+def test_load_env_file(tmp_path, monkeypatch):
+    from archaeologist.config import load_env_file
+
+    monkeypatch.delenv("ARCH_NO_DOTENV")
+    for k in ("ARCH_T_A", "ARCH_T_B", "ARCH_T_C", "ARCH_T_EMPTY", "ARCH_T_SHELL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ARCH_T_SHELL", "from-shell")
+    env = tmp_path / ".env"
+    env.write_text(
+        "# comment\n\nARCH_T_A=plain\nexport ARCH_T_B=\"quoted # kept\"\n"
+        "ARCH_T_C=val # trailing comment\nARCH_T_EMPTY=\nARCH_T_SHELL=from-file\nnot a pair\n"
+    )
+    assert load_env_file([env, tmp_path / "missing.env"]) == [env.resolve()]
+    import os
+
+    assert os.environ["ARCH_T_A"] == "plain"
+    assert os.environ["ARCH_T_B"] == "quoted # kept"
+    assert os.environ["ARCH_T_C"] == "val"
+    assert "ARCH_T_EMPTY" not in os.environ  # empty values are skipped
+    assert os.environ["ARCH_T_SHELL"] == "from-shell"  # the shell wins
+
+
+def test_load_env_file_disabled(tmp_path):
+    from archaeologist.config import load_env_file
+
+    (tmp_path / ".env").write_text("ARCH_T_OFF=1\n")
+    assert load_env_file([tmp_path / ".env"]) == []  # ARCH_NO_DOTENV is set by conftest

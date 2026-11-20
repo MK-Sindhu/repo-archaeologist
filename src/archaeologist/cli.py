@@ -26,7 +26,7 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.table import Table
 
-from .config import GraphConfig, LLMConfig
+from .config import GraphConfig, LLMConfig, load_env_file
 from .contracts import LLM
 from .eval.baselines import PlainRAGBaseline, SingleCommitBaseline
 from .eval.mine import load_benchmark, mine_benchmark, read_jsonl
@@ -59,8 +59,8 @@ err = Console(stderr=True)
 
 SYSTEMS = ("agent", "agent_no_hops", "agent_no_verify", "single_commit", "plain_rag")
 AUTH_HINT = (
-    "Claude authentication failed. Set ANTHROPIC_API_KEY to an Anthropic API key, e.g.\n"
-    "  export ANTHROPIC_API_KEY=sk-ant-..."
+    "Claude authentication failed. Set ANTHROPIC_API_KEY to an Anthropic API key in the\n"
+    "project's .env file (ANTHROPIC_API_KEY=sk-ant-...) or export it in your shell."
 )
 
 RepoArg = Annotated[
@@ -188,6 +188,7 @@ def main(
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Log progress details.")] = False,
 ) -> None:
     """Repo Archaeologist: follows code -> commit -> PR -> issue and cites every claim."""
+    load_env_file()
     logger = logging.getLogger("archaeologist")
     for handler in list(logger.handlers):
         if getattr(handler, "_arch_cli", False):

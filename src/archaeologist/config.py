@@ -48,6 +48,42 @@ class GraphConfig(BaseModel):
     max_verify_retries: int = 1
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_env_file(paths: list[Path] | None = None) -> list[Path]:
+    """Load KEY=VALUE lines from .env files into os.environ and return the files read.
+
+    Defaults to ./.env, then the project checkout's .env. Variables already set (in the shell
+    or by an earlier file) win; empty values are skipped. Set ARCH_NO_DOTENV=1 to disable.
+    """
+    if os.getenv("ARCH_NO_DOTENV"):
+        return []
+    if paths is None:
+        paths = [Path.cwd() / ".env", PROJECT_ROOT / ".env"]
+    loaded: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        path = path.resolve()
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.removeprefix("export ").split("=", 1)
+            key, value = key.strip(), value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            elif " #" in value:
+                value = value.split(" #", 1)[0].rstrip()
+            if key and value and key not in os.environ:
+                os.environ[key] = value
+        loaded.append(path)
+    return loaded
+
+
 def arch_home() -> Path:
     return Path(os.getenv("ARCH_HOME", Path.home() / ".cache" / "repo-archaeologist"))
 
