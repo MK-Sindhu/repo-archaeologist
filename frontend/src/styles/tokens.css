@@ -1,0 +1,114 @@
+/* Design tokens. Palette: drafting film, ink, gley soil strata (blue-green grays, surface to
+   deep) and fluorescent survey-flagging pink, which marks only what the answer cites and the
+   single primary action. */
+
+:root {
+  color-scheme: light;
+  --film: #edf0ee;
+  --paper: #f8faf9;
+  --paper-2: #e3e8e5;
+  --ink: #1d2421;
+  --ink-soft: #39433f;
+  --graphite: #646a67; /* #6B716E darkened a step for AA on film */
+  --rule: #c9d3cf;
+  --rule-strong: #a9b6b1;
+  --stratum-0: #dce3e0;
+  --stratum-1: #c9d3cf;
+  --stratum-2: #afc0bb;
+  --stratum-3: #8fa6a1;
+  --gley-deep: #5e7a78;
+  --line: #34504d;
+  --tag: #f8faf9;
+  --tag-border: #9fb0aa;
+  --tag-border-strong: #4c5e5a;
+  --tag-meta: #5a605d;
+  --flag: #ff2e7e;
+  --flag-text: #c2005a;
+  --on-flag: #0e1211;
+  --danger: #a3122f;
+  --shadow: 0 1px 2px rgb(29 36 33 / 0.08), 0 8px 24px -12px rgb(29 36 33 / 0.28);
+  --speck: rgb(29 36 33 / 0.07);
+
+  --font-display: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  --font-ui: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  --font-prose: "Literata Variable", "Literata", Georgia, serif;
+  --font-mono: "Martian Mono Variable", "Martian Mono", ui-monospace, "SF Mono", monospace;
+
+  --fs-2xs: 0.6875rem; /* 11 */
+  --fs-xs: 0.75rem; /* 12 */
+  --fs-sm: 0.8125rem; /* 13 */
+  --fs-base: 0.9375rem; /* 15 */
+  --fs-md: 1.09375rem; /* 17.5 prose */
+  --fs-lg: 1.375rem; /* 22 */
+  --fs-xl: clamp(1.5rem, 1.1rem + 1.4vw, 2rem); /* page titles */
+  --fs-hero: clamp(2.25rem, 1.35rem + 3.4vw, 4rem);
+
+  --radius: 3px;
+  --gutter: 16px;
+  --max: 1280px;
+  --header-h: 56px;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --gutter: 32px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --film: #121816;
+    --paper: #182120;
+    --paper-2: #1f2a28;
+    --ink: #e3e8e5;
+    --ink-soft: #c3cbc7;
+    --graphite: #8e9893;
+    --rule: #26302e;
+    --rule-strong: #3a4744;
+    --stratum-0: #1a2220;
+    --stratum-1: #1f2926;
+    --stratum-2: #25312e;
+    --stratum-3: #2c3936;
+    --gley-deep: #7fa19d;
+    --line: #9fc0bb;
+    --tag: #24302d;
+    --tag-border: #4a5a56;
+    --tag-border-strong: #a9bdb8;
+    --tag-meta: #a7b1ac;
+    --flag: #ff4f93;
+    --flag-text: #ff6ba4;
+    --on-flag: #0e1211;
+    --danger: #ff7a8a;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -12px rgb(0 0 0 / 0.7);
+    --speck: rgb(227 232 229 / 0.045);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --film: #121816;
+  --paper: #182120;
+  --paper-2: #1f2a28;
+  --ink: #e3e8e5;
+  --ink-soft: #c3cbc7;
+  --graphite: #8e9893;
+  --rule: #26302e;
+  --rule-strong: #3a4744;
+  --stratum-0: #1a2220;
+  --stratum-1: #1f2926;
+  --stratum-2: #25312e;
+  --stratum-3: #2c3936;
+  --gley-deep: #7fa19d;
+  --line: #9fc0bb;
+  --tag: #24302d;
+  --tag-border: #4a5a56;
+  --tag-border-strong: #a9bdb8;
+  --tag-meta: #a7b1ac;
+  --flag: #ff4f93;
+  --flag-text: #ff6ba4;
+  --on-flag: #0e1211;
+  --danger: #ff7a8a;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -12px rgb(0 0 0 / 0.7);
+  --speck: rgb(227 232 229 / 0.045);
+}

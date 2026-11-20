@@ -17,14 +17,27 @@ the full agent, its ablations and the simpler baselines.
 
 ## Quickstart
 
-Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and git.
-
-The quickest way in is the launcher: it installs dependencies, creates `.env` on first run, clones
-GitHub repos when given `owner/name` or a URL, indexes, and then answers questions:
+Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), git, and Node.js (to build the website).
 
 ```bash
-./start.sh pallets/click                                  # then type questions interactively
-./start.sh path/to/repo "why does backoff() cap the delay?"   # one question
+./start.sh            # installs everything, builds the website, opens http://localhost:8765
+```
+
+In the website, open a repository (`pallets/click`, a GitHub URL, or a local path; GitHub repos
+are cloned with full history) and ask why its code is the way it is. While the agent works, the
+page draws the dig as a cross-section: the code as it is now on top, then the commits that
+changed it, the pull requests behind them (the goal) and the issues behind those (the need).
+Each find is tagged as it turns up, links between layers are drawn as they are followed, and
+the answer cites finds by their tag numbers. Questions and answers are kept in a history per
+repository. `./start.sh --port 9000 --no-open` changes the port; `arch serve` is the same server
+without the build step. The server listens on localhost only and accepts local paths; set
+`ARCH_WEB_ALLOW_LOCAL=0` to allow GitHub repositories only.
+
+Terminal mode, without the website:
+
+```bash
+./start.sh ask pallets/click                                  # then type questions interactively
+./start.sh ask path/to/repo "why does backoff() cap the delay?"   # one question
 ```
 
 Or step by step:
@@ -201,7 +214,10 @@ computes only its rows.
     mocked GitHub API and a scripted fake LLM, with no network and no keys.
   - Tests marked `live` (real GitHub, real FastEmbed) are deselected by default; run them
     with `uv run pytest -m live`.
-  - `arch ask` has not yet been checked end to end against the live Claude API.
+  - Checked end to end against live Gemini (CLI and website); not yet against the live
+    Claude API.
+- **Website:** the UI-first front end (`./start.sh`), streaming each agent step live, with a
+  per-repository question history.
 - **M2 (next):**
   - Mine 50-100 items from 2-3 public repositories, e.g. `encode/httpx`, `pallets/click`
     and `langchain-ai/langgraph`.
@@ -209,7 +225,7 @@ computes only its rows.
   - No benchmark results exist yet.
 - **M3:**
   - A DeepWiki baseline (via MCP) and an import of the Argus data.
-  - A streaming UI showing graph steps, and LangSmith tracing.
+  - LangSmith tracing.
 
 ## Development
 
@@ -217,6 +233,10 @@ computes only its rows.
 uv sync --extra embed
 uv run pytest -q              # offline tests
 uv run ruff check src tests
+
+cd frontend && npm install
+npm run dev                   # website with hot reload at http://localhost:5173 (needs `arch serve`)
+npm test                      # frontend unit tests
 ```
 
 See [PLAN.md](PLAN.md) for the design and module contracts.
